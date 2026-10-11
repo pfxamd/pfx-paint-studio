@@ -58,6 +58,14 @@ impl HokusaiBrush {
             .base_value = log2_radius;
     }
 
+    /// Toggle erasing while preserving the selected brush's spacing and shape.
+    #[wasm_bindgen(js_name = setEraser)]
+    pub fn set_eraser(&mut self, enabled: bool) {
+        self.inner
+            .get_mut(hokusai_core::BrushSetting::Eraser)
+            .base_value = if enabled { 1.0 } else { 0.0 };
+    }
+
     /// Read the brush's designed radius (its `radius_logarithmic` base
     /// value). Useful for UIs that want to offset from the natural size
     /// rather than override it outright.
