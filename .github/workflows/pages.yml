@@ -69,6 +69,26 @@ jobs:
             exit 1
           fi
 
+      - name: Browser boot smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 8732 --directory _site >/tmp/pfx-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" || true' EXIT
+          for i in 1 2 3 4 5; do
+            if curl -fsS http://127.0.0.1:8732/ >/dev/null; then break; fi
+            sleep 1
+          done
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          timeout 45s "$CHROME" --headless --no-sandbox --disable-dev-shm-usage --disable-gpu --virtual-time-budget=12000 --dump-dom http://127.0.0.1:8732/ > /tmp/pfx-rendered.html 2>/tmp/pfx-chrome.log
+          if ! grep -Fq "Ready to paint — all drawing stays on this device" /tmp/pfx-rendered.html; then
+            echo "Browser never reached engine ready state"
+            tail -n 50 /tmp/pfx-chrome.log || true
+            exit 1
+          fi
+          echo "Real browser loaded Hokusai WASM and reached ready state"
+
       - name: Keep built browser runtime in this repository
         shell: bash
         run: |
