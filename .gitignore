@@ -1,0 +1,4 @@
+/pkg/
+/_site/
+/vendor/hokusai/target/
+.DS_Store

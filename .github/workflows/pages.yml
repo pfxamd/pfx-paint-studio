@@ -1,0 +1,89 @@
+name: Build and deploy PFx Paint Studio
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pfx-paint-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout local source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Install Rust and WASM target
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc
+        with:
+          workspaces: vendor/hokusai
+
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@0d096b08b4e5a7de8c28de67e11e945404e9eefa
+        with:
+          version: latest
+
+      - name: Check local JavaScript
+        run: |
+          node --check src/app.js
+          node --check src/engine.js
+          node --check sw.js
+
+      - name: Test Hokusai brush engine
+        run: cargo test --manifest-path vendor/hokusai/Cargo.toml -p hokusai-core -p hokusai-brush -p hokusai-tile-mem
+
+      - name: Compile bundled engine to WebAssembly
+        run: |
+          mkdir -p _site/pkg
+          wasm-pack build vendor/hokusai/crates/hokusai-wasm --target web --release --out-dir "$GITHUB_WORKSPACE/_site/pkg"
+
+      - name: Assemble static site (no CDN)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp index.html sw.js _site/
+          cp -R src public _site/
+          touch _site/.nojekyll
+          PATCH=$((GITHUB_RUN_NUMBER - 1))
+          sed -i "s/alpha-version\">0.1.0/alpha-version\">0.1.$PATCH/" _site/index.html
+          sed -i "s/pfx-paint-cache-v1/pfx-paint-cache-v$GITHUB_RUN_NUMBER/" _site/sw.js
+          test -s _site/pkg/hokusai_wasm.js
+          test -s _site/pkg/hokusai_wasm_bg.wasm
+          test -s _site/public/brushes/charcoal.myb
+          if grep -REn 'https?://' _site/src _site/index.html _site/sw.js; then
+            echo "External runtime URL detected"
+            exit 1
+          fi
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b
+
+      - name: Upload site
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e
