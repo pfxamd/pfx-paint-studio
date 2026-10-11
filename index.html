@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111419">
+  <meta name="description" content="PFx Paint Studio — a local-first digital painting workspace.">
+  <title>PFx Paint Studio — Alpha</title>
+  <link rel="icon" type="image/svg+xml" href="./public/brand/Red-pfx.svg">
+  <link rel="stylesheet" href="./src/style.css">
+  <script type="module" src="./src/app.js"></script>
+</head>
+<body>
+  <div class="studio">
+    <header class="topbar">
+      <div class="brand">
+        <img class="brand-mark" src="./public/brand/Red-pfx.svg" alt="PFx">
+        <div class="brand-copy">
+          <div class="brand-name-row"><strong>PFx Paint Studio</strong><span class="alpha-badge">ALPHA <span class="alpha-version">0.1.0</span></span></div>
+          <small>Digital painting workspace</small>
+        </div>
+      </div>
+      <div class="top-actions" role="group" aria-label="Document actions">
+        <button class="action-btn" id="undo" title="Undo (Ctrl+Z)" disabled><span class="action-glyph" aria-hidden="true">↶</span>Undo</button>
+        <button class="action-btn" id="redo" title="Redo (Ctrl+Shift+Z)" disabled><span class="action-glyph" aria-hidden="true">↷</span>Redo</button>
+        <span class="top-divider" aria-hidden="true"></span>
+        <button class="action-btn clear-btn" id="clear" title="Clear canvas">Clear</button>
+        <button class="save-btn" id="save"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 16v4h16v-4"/></svg> Save PNG</button>
+      </div>
+    </header>
+
+    <div class="editor">
+      <nav class="tools" aria-label="Tools">
+        <span class="rail-label">TOOLS</span>
+        <button class="tool active" id="tool-brush" data-tool="brush" aria-pressed="true" title="Paintbrush (B)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6 4-4 4 4-4 4m0-4-9 9m0 0c-1.2-1.1-3.1-1-4.1.2-1.4 1.5-.4 3.5-2.9 5.8 3.7.4 6.1-.4 7.1-2.7.7-1.6.5-2.6-.1-3.3Z"/></svg>
+          <span>Brush</span>
+        </button>
+        <button class="tool" id="tool-eraser" data-tool="eraser" aria-pressed="false" title="Eraser (E)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m20 20-12.3 0a3 3 0 0 1-2.1-.9L2.8 16a2.5 2.5 0 0 1 0-3.5l8.7-8.7a2.5 2.5 0 0 1 3.5 0l6.2 6.2a2.5 2.5 0 0 1 0 3.5L14.7 20M8.5 9.5l6 6"/></svg>
+          <span>Eraser</span>
+        </button>
+        <button class="tool" id="tool-picker" data-tool="picker" aria-pressed="false" title="Pick colour (I)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 5 6 6m-8-4 6 6M4 20l2-6L17.5 2.5a2.1 2.1 0 0 1 3 3L9 17l-5 3Z"/></svg>
+          <span>Pick</span>
+        </button>
+        <span class="tool-rail-footer">PFx / 01</span>
+      </nav>
+
+      <main class="workspace">
+        <div class="workspace-heading">
+          <div><span class="eyebrow-dot"></span><span id="document-label">Untitled artwork</span></div>
+          <span class="dimension">1200 × 800 px</span>
+        </div>
+        <div class="artboard-stage">
+          <div class="artboard-frame" id="artboard-frame">
+            <canvas id="paint-canvas" width="1200" height="800" aria-label="Drawing canvas"></canvas>
+            <div class="canvas-loading" id="loading" role="status">Loading painting engine<span class="loading-dots">…</span></div>
+          </div>
+        </div>
+        <div class="workspace-footer">
+          <span class="status-indicator" id="engine-indicator"></span>
+          <span id="status" role="status" aria-live="polite">Preparing local brush engine</span>
+          <span class="footer-hint">Drag to draw · B brush · E eraser · I colour picker</span>
+        </div>
+      </main>
+
+      <aside class="inspector" aria-label="Painting settings">
+        <div class="panel-head"><div><span class="panel-eyebrow">STUDIO / 01</span><h2>Brushes & colour</h2></div><span class="panel-symbol" aria-hidden="true">✳</span></div>
+        <section class="settings-section brush-section" aria-label="Brush library">
+          <div class="section-label"><h3>Brush library</h3><span>04 brushes</span></div>
+          <div class="brush-grid">
+            <button class="brush-card selected" data-brush="charcoal" aria-pressed="true"><span class="brush-stroke charcoal-stroke"></span><span>Charcoal</span></button>
+            <button class="brush-card" data-brush="calligraphy" aria-pressed="false"><span class="brush-stroke calligraphy-stroke"></span><span>Ink</span></button>
+            <button class="brush-card" data-brush="brush" aria-pressed="false"><span class="brush-stroke classic-stroke"></span><span>Paint</span></button>
+            <button class="brush-card" data-brush="marker_fat" aria-pressed="false"><span class="brush-stroke marker-stroke"></span><span>Marker</span></button>
+          </div>
+        </section>
+        <section class="settings-section colour-section" aria-label="Colour settings">
+          <div class="section-label"><h3>Colour</h3><span id="hex-label">#1F242D</span></div>
+          <div class="colour-control"><label class="colour-well" for="color"><input type="color" id="color" value="#1f242d"><span class="colour-well-label">Choose colour</span></label><div class="colour-meta"><strong id="colour-name">Custom colour</strong><small>Tap a swatch or pick your own</small></div></div>
+          <div class="swatches" role="group" aria-label="Palette">
+            <button class="swatch selected" data-color="#1f242d" style="--swatch:#1f242d" title="Graphite"></button>
+            <button class="swatch" data-color="#f4f0e8" style="--swatch:#f4f0e8" title="Ivory"></button>
+            <button class="swatch" data-color="#d95950" style="--swatch:#d95950" title="Coral"></button>
+            <button class="swatch" data-color="#ddad60" style="--swatch:#ddad60" title="Gold"></button>
+            <button class="swatch" data-color="#538f86" style="--swatch:#538f86" title="Sea green"></button>
+            <button class="swatch" data-color="#618bc2" style="--swatch:#618bc2" title="Blue"></button>
+            <button class="swatch" data-color="#875c9c" style="--swatch:#875c9c" title="Violet"></button>
+          </div>
+        </section>
+        <section class="settings-section size-section" aria-label="Brush size">
+          <div class="section-label"><h3>Brush size</h3><output id="size-label" for="size">100%</output></div>
+          <input id="size" type="range" min="-2" max="2" step="0.05" value="0" aria-label="Brush size">
+          <div class="range-endpoints"><span>Fine</span><span>Broad</span></div>
+        </section>
+        <div class="engine-card"><div class="engine-card-top"><span class="engine-pulse"></span><strong>Hokusai Brush Engine</strong></div><p>Native brush physics, running locally in WebAssembly.</p><span class="engine-card-caption">NO CLOUD PROCESSING</span></div>
+      </aside>
+    </div>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
