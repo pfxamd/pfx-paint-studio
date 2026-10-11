@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -67,6 +67,19 @@ jobs:
           if grep -REn 'https?://' _site/src _site/index.html _site/sw.js; then
             echo "External runtime URL detected"
             exit 1
+          fi
+
+      - name: Keep built browser runtime in this repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p pkg
+          cp _site/pkg/hokusai_wasm.js pkg/hokusai_wasm.js
+          cp _site/pkg/hokusai_wasm_bg.wasm pkg/hokusai_wasm_bg.wasm
+          git add -f pkg/hokusai_wasm.js pkg/hokusai_wasm_bg.wasm
+          if ! git diff --cached --quiet; then
+            git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "build: preserve self-hosted Hokusai WASM browser runtime"
+            git push origin HEAD:main
           fi
 
       - name: Configure GitHub Pages
