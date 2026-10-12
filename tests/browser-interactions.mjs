@@ -170,9 +170,12 @@ try {
   assert((await page.evaluate("document.querySelector('#paint-pointer').dataset.mode"))==="brush","Brush ring mode available");
   const ringBefore=await page.evaluate("parseFloat(getComputedStyle(document.querySelector('#paint-pointer .cursor-ring')).width)");
   assert(ringBefore>=1.5,"Nominal brush diameter renders at fine detail sizes");
+  const cursorSpec = await page.evaluate(`(() => {const b=document.querySelector('#paint-canvas').getBoundingClientRect();const r=document.querySelector('#paint-pointer .cursor-ring').getBoundingClientRect();return {width:b.width,actual:r.width,artworkWidth:1200};})()`);
+  assert(Math.abs(cursorSpec.actual-ringBefore)<0.1,"Brush cursor retains precise CSS sizing");
   await page.evaluate("(() => {const i=document.querySelector('#size');i.value='1';i.dispatchEvent(new Event('input',{bubbles:true}));})()");
   const ringAfter=await page.evaluate("parseFloat(getComputedStyle(document.querySelector('#paint-pointer .cursor-ring')).width)");
-  assert(ringAfter>ringBefore*1.8 && ringAfter<ringBefore*2.2,"Pointer diameter tracks brush size logarithmically");
+  assert(ringAfter>ringBefore*2.57 && ringAfter<ringBefore*2.83,"Pointer diameter tracks brush size logarithmically");
+  assert((await page.evaluate("document.querySelector('#size-label').textContent")) === "272%", "Brush size indicator matches actual radius scaling");
   await page.evaluate("(() => {const i=document.querySelector('#size');i.value='0';i.dispatchEvent(new Event('input',{bubbles:true}));})()");
   await shot(page,"desktop-pointer.png");
   await click(page,"#tool-picker");

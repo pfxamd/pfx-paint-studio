@@ -66,6 +66,9 @@ export class PaintingEngine {
     this.current = null;
     this.strokeRect = null;
     this.renderQueued = false;
+    this.imageView = null;
+    this.imageBuffer = null;
+    this.imagePointer = -1;
     this.onHistoryChange = onHistoryChange;
     this.refreshBrush();
     this.renderNow();
@@ -248,29 +251,37 @@ export class PaintingEngine {
     });
   }
 
+  // Reuse the WASM memory view and ImageData until memory grows.
+  // Browser puts only the updated rectangle, without allocating a 3.8MB
+  // Uint8ClampedArray wrapper on every animation frame.
+  getImageView() {
+    const buffer = this.wasm.memory.buffer;
+    const ptr = this.surface.pixelsPtr();
+    if (this.imageView && this.imageBuffer === buffer && this.imagePointer === ptr) {
+      return this.imageView;
+    }
+    const pixels = new Uint8ClampedArray(buffer, ptr, this.surface.pixelsLen());
+    this.imageView = new ImageData(pixels, this.canvas.width, this.canvas.height);
+    this.imageBuffer = buffer;
+    this.imagePointer = ptr;
+    return this.imageView;
+  }
+
   renderDirty() {
     const dirty = this.surface.flushDirtyPixels();
     if (dirty.length !== 4) return;
     const [x, y, width, height] = dirty;
-    if (width === 0 || height === 0) return;
-    const ptr = this.surface.pixelsPtr();
-    const len = this.surface.pixelsLen();
-    const pixels = new Uint8ClampedArray(this.wasm.memory.buffer, ptr, len);
-    const image = new ImageData(pixels, this.canvas.width, this.canvas.height);
-    this.context.putImageData(image, 0, 0, x, y, width, height);
+    if (!width || !height) return;
+    this.context.putImageData(this.getImageView(), 0, 0, x, y, width, height);
   }
 
   renderNow() {
     this.surface.flush_pixels();
-    const ptr = this.surface.pixelsPtr();
-    const len = this.surface.pixelsLen();
-    const pixels = new Uint8ClampedArray(this.wasm.memory.buffer, ptr, len);
-    const image = new ImageData(pixels, this.canvas.width, this.canvas.height);
-    this.context.putImageData(image, 0, 0);
+    this.context.putImageData(this.getImageView(), 0, 0);
   }
 
   pickColor(event, rect) {
-    this.renderNow();
+    this.renderDirty();
     const point = this.sample(event, rect);
     const x = Math.max(0, Math.min(this.canvas.width - 1, Math.floor(point.x)));
     const y = Math.max(0, Math.min(this.canvas.height - 1, Math.floor(point.y)));

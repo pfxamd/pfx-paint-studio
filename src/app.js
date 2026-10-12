@@ -87,7 +87,7 @@ function applyColor(hex) {
 function applySize(value) {
   size.value = String(value);
   size.style.setProperty("--size-fill", (Number(value) + 2) / 4 * 100 + "%");
-  $("size-label").textContent = Math.round(100 * Math.pow(2, Number(value))) + "%";
+  $("size-label").textContent = Math.round(100 * Math.exp(Number(value))) + "%";
   if (engine) engine.configure({ size: Number(value) });
   pointer.refresh();
 }

@@ -3,7 +3,7 @@
  *
  * UI-only: never receives pointer events and never modifies stroke coordinates.
  * The ring represents the selected brush's NOMINAL dab diameter at 100% pressure:
- * MyPaint's radius_logarithmic is log2(radius in artwork pixels). Pressure,
+ * MyPaint's radius_logarithmic uses the natural logarithm of the radius. Pressure,
  * tilt and brush mappings can change the rendered footprint dynamically.
  */
 export class PaintCursor {
@@ -88,7 +88,7 @@ export class PaintCursor {
     const mode = panMode || this.getTool();
     this.overlay.dataset.mode = mode;
 
-    const nominalRadius = Math.pow(2, engine.active.radiusLog());
+    const nominalRadius = Math.exp(engine.active.radiusLog());
     const paperPixelScale = paper.width / this.canvas.width;
     const diameter = 2 * nominalRadius * paperPixelScale;
     // Restrict the display diameter, NOT the actual engine size or exported image.

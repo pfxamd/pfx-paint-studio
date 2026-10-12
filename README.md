@@ -17,7 +17,7 @@ Features: 12 bundled Hokusai-powered artist brushes with real rendered previews,
 
 ## Mouse drawing responsiveness
 
-The stroke pipeline preserves native browser coalesced samples, fills large gaps with bounded spatial substeps (without lagging the endpoint), and caches artwork positioning for each stroke. The vendored WASM renderer now tracks dirty 64px tiles and updates only modified pixels during interactive painting. Full-frame rendering remains available for PNG export, colour sampling, undo and clear. A small mouse-only cap on upstream `SlowTracking` reduces excessive brush-follow lag while preserving each brush's per-dab behaviour and original pen dynamics. Existing saved artwork without device-type metadata remains compatible.
+The stroke pipeline preserves native browser coalesced samples, fills large gaps with bounded spatial substeps (without lagging the endpoint), and caches artwork positioning for each stroke. The vendored WASM renderer now tracks dirty 64px tiles and updates only modified pixels during interactive painting. Full-frame rendering remains available for PNG export, undo and clear; colour sampling consumes any pending dirty region without rebuilding the entire bitmap. ImageData buffers are reused until WASM memory changes. A small mouse-only cap on upstream `SlowTracking` reduces excessive brush-follow lag while preserving each brush's per-dab behaviour and original pen dynamics. Existing saved artwork without device-type metadata remains compatible.
 
 ## Brush and runtime assets
 
@@ -57,7 +57,7 @@ Expected site: https://pfxamd.github.io/pfx-paint-studio/
 
 ## Desktop drawing pointers
 
-Desktop mouse/pen drawing now uses a precise custom pointer: a high-contrast brush ring and centre point, dashed eraser ring, eyedropper colour marker, and open/closed hands when panning. The ring follows the **nominal MyPaint brush diameter** (base log2 radius, selected size, CSS artwork zoom). Individual MyPaint brush mappings for pressure, speed or tilt can change the actual dab footprint, so the ring is a size reference rather than an exact per-dab silhouette. The overlay uses no external images, does not capture pointer events, never appears in PNG exports, and falls back to native cursors for mobile and touch.
+Desktop mouse/pen drawing now uses a precise custom pointer: a high-contrast brush ring and centre point, dashed eraser ring, eyedropper colour marker, and open/closed hands when panning. The ring follows the **nominal MyPaint brush diameter** (natural-log brush radius, selected size, CSS artwork zoom). Individual MyPaint brush mappings for pressure, speed or tilt can change the actual dab footprint, so the ring is a size reference rather than an exact per-dab silhouette. The overlay uses no external images, does not capture pointer events, never appears in PNG exports, and falls back to native cursors for mobile and touch.
 
 ## Shortcuts
 
