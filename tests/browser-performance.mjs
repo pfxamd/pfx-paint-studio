@@ -7,6 +7,10 @@ import {setTimeout as sleep} from "node:timers/promises";
 
 const base=process.env.PFX_TEST_URL||"http://127.0.0.1:8732/";
 const port=9335;
+const cpuSlowdown=Number(process.env.PFX_CPU_SLOWDOWN||1);
+const strokeCount=Number(process.env.PFX_BENCH_STROKES||300);
+if(!Number.isInteger(strokeCount)||strokeCount<72||strokeCount>2000||
+   ![1,2,3,4,6].includes(cpuSlowdown))throw Error("Invalid benchmark configuration");
 const dir=await mkdtemp(path.join(tmpdir(),"pfx-perf-"));
 await mkdir("test-artifacts",{recursive:true});
 const chrome=spawn(process.argv[2]||"google-chrome",[
@@ -68,7 +72,8 @@ try{
   await page.send("Page.navigate",{url:base});
   await until(async()=>(await page.evaluate("document.querySelector('#status')?.textContent||''")).includes("Ready to paint"),"Hokusai load");
 
-  const report=await page.evaluate(`(async()=>{
+  await page.send("Emulation.setCPUThrottlingRate",{rate:cpuSlowdown});
+  const expression=`(async()=>{
   const {PaintingEngine}=await import('./src/engine.js');
   const canvas=document.createElement('canvas');canvas.width=1200;canvas.height=800;
   const engine=await PaintingEngine.create(canvas,()=>{});
@@ -101,11 +106,12 @@ try{
     }
   }
   await frame();await frame();
-  const checksum=(context)=>{
+  const checksum=async(context)=>{
     const bytes=context.getImageData(0,0,1200,800).data;
-    let sum=0;for(let i=0;i<bytes.length;i+=181)sum=(sum+bytes[i])>>>0;return sum;
+    const digest=new Uint8Array(await crypto.subtle.digest("SHA-256",bytes));
+    return Array.from(digest,x=>x.toString(16).padStart(2,"0")).join("");
   };
-  const baseline=checksum(canvas.getContext('2d'));
+  const baseline=await checksum(canvas.getContext('2d'));
   for(let i=0;i<8;i++){const t=performance.now();engine.undo();metrics.undo.push(performance.now()-t);}
   for(let i=0;i<8;i++){const t=performance.now();engine.redo();metrics.redo.push(performance.now()-t);}
   const tSave=performance.now(),saved=engine.snapshot(),snapshotMs=performance.now()-tSave;
@@ -113,7 +119,7 @@ try{
   const restored=await PaintingEngine.create(canvas2,()=>{});
   const tRestore=performance.now();restored.restoreArtwork(saved);
   const restoreMs=performance.now()-tRestore;
-  const consistent=baseline===checksum(canvas2.getContext('2d'));
+  const consistent=baseline===await checksum(canvas2.getContext('2d'));
   const result={
     browser:'Chromium',artwork:[1200,800],strokes:stats(metrics.strokes),
     undo:stats(metrics.undo),redo:stats(metrics.redo),frameWait:stats(metrics.frames),
@@ -125,14 +131,19 @@ try{
     item.releaseCheckpoints();item.active.free();item.surface.free();
   }
   return result;
-})()`);
+})()`;
+  const report=await page.evaluate(expression.replace("for(let n=0;n<300;n++){",
+    "for(let n=0;n<"+strokeCount+";n++){"));
+  report.cpuSlowdown=cpuSlowdown;
+  report.strokesRequested=strokeCount;
   const measures=await page.send("Performance.getMetrics");
   const m=Object.fromEntries(measures.metrics.map(x=>[x.name,x.value]));
   report.jsHeapMiB=Math.round((m.JSHeapUsedSize||0)/1048576*10)/10;
-  if(!report.consistent||report.strokes.count!==300||report.points<3600||report.checkpoints<2)
+  if(!report.consistent||report.strokes.count!==strokeCount||report.points<strokeCount*12||report.checkpoints<2)
     throw Error("Stress test failed correctness or volume: "+JSON.stringify(report));
   console.log("PERFORMANCE_REPORT "+JSON.stringify(report));
-  await writeFile("test-artifacts/performance.json",JSON.stringify(report,null,2)+"\n");
+  const output=cpuSlowdown===1?"performance.json":"performance-cpu-"+cpuSlowdown+"x.json";
+  await writeFile("test-artifacts/"+output,JSON.stringify(report,null,2)+"\n");
 }catch(error){
   console.error("PERFORMANCE_FAILED",error.stack||error);
   process.exitCode=1;
