@@ -191,6 +191,18 @@ export class HokusaiCanvas {
         wasm.hokusaicanvas_restoreCheckpoint(this.__wbg_ptr, saved.__wbg_ptr);
     }
     /**
+     * Install a validated local tile checkpoint, returning false when
+     * corrupt/obsolete. The existing history remains the recovery source.
+     * @param {Uint8Array} data
+     * @returns {boolean}
+     */
+    restoreTiles(data) {
+        const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.hokusaicanvas_restoreTiles(this.__wbg_ptr, ptr0, len0);
+        return ret !== 0;
+    }
+    /**
      * Feed one pointer event. `dtime` is seconds since the previous call.
      *
      * `xtilt` / `ytilt` are pen tilt in [-1, 1], matching libmypaint's
@@ -237,6 +249,18 @@ export class HokusaiCheckpoint {
     free() {
         const ptr = this.__destroy_into_raw();
         wasm.__wbg_hokusaicheckpoint_free(ptr, 0);
+    }
+    /**
+     * Export an exact 16-bit tiled surface, not an 8-bit preview image.
+     * @param {number} width
+     * @param {number} height
+     * @returns {Uint8Array}
+     */
+    exportTiles(width, height) {
+        const ret = wasm.hokusaicheckpoint_exportTiles(this.__wbg_ptr, width, height);
+        var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v1;
     }
 }
 if (Symbol.dispose) HokusaiCheckpoint.prototype[Symbol.dispose] = HokusaiCheckpoint.prototype.free;
@@ -317,6 +341,13 @@ function getUint8ArrayMemory0() {
         cachedUint8ArrayMemory0 = new Uint8Array(wasm.memory.buffer);
     }
     return cachedUint8ArrayMemory0;
+}
+
+function passArray8ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 1, 1) >>> 0;
+    getUint8ArrayMemory0().set(arg, ptr / 1);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
 }
 
 function passStringToWasm0(arg, malloc, realloc) {
