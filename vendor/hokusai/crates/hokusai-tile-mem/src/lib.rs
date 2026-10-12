@@ -81,13 +81,15 @@ impl MemSurface {
             return None;
         }
         let mut result = Self::new();
-        let max_x = (width as i32 + 63) / 64 + 1;
-        let max_y = (height as i32 + 63) / 64 + 1;
+        // Brushes can extend several 64px tiles beyond the artboard.
+        // Keep coordinates bounded while accepting legitimate large dabs.
+        let max_x = (width as i32 + 63) / 64 + 16;
+        let max_y = (height as i32 + 63) / 64 + 16;
         for index in 0..count {
             let offset = HEADER + index * RECORD;
             let tx = i32::from_le_bytes(data[offset..offset + 4].try_into().unwrap());
             let ty = i32::from_le_bytes(data[offset + 4..offset + 8].try_into().unwrap());
-            if !(-2..=max_x).contains(&tx) || !(-2..=max_y).contains(&ty)
+            if !(-16..=max_x).contains(&tx) || !(-16..=max_y).contains(&ty)
                 || result.tiles.contains_key(&(tx, ty)) {
                 return None;
             }
@@ -149,7 +151,7 @@ mod tests {
     #[test]
     fn tile_cache_roundtrips_exact_fix15_pixels_and_rejects_corruption() {
         let mut surface = MemSurface::new();
-        for (tx, ty, value) in [(0, 0, 32768), (4, 3, 10032), (-1, 0, 4096)] {
+        for (tx, ty, value) in [(0, 0, 32768), (4, 3, 10032), (-3, -3, 4096)] {
             let tile = surface.tile_request_start(tx, ty);
             tile[0][0] = [value, 42, 128, value];
             tile[63][63] = [256, value, 0, value];
