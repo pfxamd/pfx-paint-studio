@@ -56,6 +56,7 @@ jobs:
           node --check tests/browser-input-latency.mjs
           node --check tests/browser-performance.mjs
           node --check tests/browser-endurance.mjs
+          node --check tests/heavy-endurance.mjs
           node --check tests/firefox-interactions.mjs
 
       - name: Test Hokusai brush engine
@@ -144,6 +145,21 @@ jobs:
           done
           node tests/firefox-interactions.mjs
 
+      - name: Stress-test 2000 heavy strokes in Chromium and Firefox (manual)
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 8732 --directory _site >/tmp/pfx-heavy-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" || true' EXIT
+          for i in 1 2 3 4 5; do
+            if curl -fsS http://127.0.0.1:8732/ >/dev/null; then break; fi
+            sleep 1
+          done
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          node tests/heavy-endurance.mjs "$CHROME"
+
       - name: Benchmark long drawing sessions (manual run only)
         if: github.event_name == 'workflow_dispatch'
         shell: bash
@@ -186,6 +202,7 @@ jobs:
             test-artifacts/input-latency.json
             test-artifacts/firefox-results.json
             test-artifacts/endurance-report.json
+            test-artifacts/heavy-endurance.json
           if-no-files-found: ignore
 
       - name: Keep built browser runtime in this repository

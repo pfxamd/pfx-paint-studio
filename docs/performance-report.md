@@ -115,3 +115,60 @@ and **53% reduction in event-to-upload p95**. This is one pair of CI runs:
 variability, hardware stylus latency, long-session behavior, and other
 operating systems were **not** established by these measurements. The stress
 run is optional to keep routine CI and deployments short.
+
+
+## 2000 heavy-brush strokes in Chromium and Firefox (2026-10-12)
+
+**Verified CI:** [GitHub Actions run 38264932324](https://github.com/pfxamd/pfx-paint-studio/actions/runs/38264932324), using `tests/heavy-endurance.mjs`.
+The test runs the *actual locally bundled Hokusai WASM engine* in two genuine headless
+browsers, drawing 2000 strokes with 8 rotating heavy presets: expressive/glazing
+watercolor, oil, acrylic, pastel, dry brush, textured ink and paint. Each 1200 × 800
+canvas retained **44,093 sample points**. Some strokes use simulated pen pressure
+and tilt; no physical stylus was used.
+
+The script sampled milestones at 500 / 1000 / 1500 / 2000 strokes, checked the
+checkpoint bound, and measured engine work + the WASM memory buffer. It also
+tested at 1000 and 2000 strokes: eight undo and redo actions, byte-identical
+SHA-256 digests after undo/redo and full reconstruction, complete IndexedDB
+autosave, and at 2000 strokes a *full page reload*, independent artwork load and
+pixel-identical restore. **Both browsers passed with zero uncaught exceptions.**
+
+| 2000-stroke metric | Chromium | Firefox |
+|---|---:|---:|
+| Retained stroke points | 44,093 | 44,093 |
+| Stroke median / p95 | 1.2 / 10.4 ms | 9 / 123 ms |
+| Full reconstruct from 2000 strokes | 5,149 ms | 53,717 ms |
+| Restore after page reload | 5,173 ms | 53,923 ms |
+| Autosave completion | 300 ms | 389 ms |
+| WASM buffer high-water size | 103.9 MiB | 103.8 MiB |
+| JS heap reported by the browser | 7.6 MiB | Unavailable |
+| Replay, undo/redo, reload pixels | Exact | Exact |
+
+At 1000 heavy strokes, undo/redo operations were slow in both browsers because
+the nearest snapshot can be up to 23 strokes behind the current history
+length: Chromium median undo/redo **113.5 / 122 ms**; Firefox **1304 / 1430 ms**.
+At 2000 strokes the snapshot alignment differed, so undo/redo medians were
+much lower; do not interpret this as proof of improving long-session speed.
+
+At the 2000-stroke milestone, the WASM buffer had stopped growing after
+1500 strokes in both runs (reserved linear memory, **not** live Rust allocation
+or total browser RAM). Chromium reported a 7.6 MiB JS heap; the test cannot
+measure Firefox JS heap, so no Firefox heap/total-memory claim is made.
+
+**Measured bottleneck:** Firefox full replay on this heavy workload takes about
+54 seconds. This is functionally correct but **not** acceptably responsive;
+future optimization should target heavy-stroke replay/restore and the
+snapshot-alignment-dependent undo cost, with exact-pixel regression tests.
+No performance fix is claimed from this stress-test-only change.
+
+**Limitations:** the workloads are generated programmatically using the real
+brush engine, not 2000 real hand movements. A requestAnimationFrame checkpoint
+after each 8 strokes estimates frame gaps *under deliberate main-thread overload*;
+it is **not** a measurement of continuous on-screen drawing latency. CI runner
+hardware, headless renderers and JIT conditions differ; comparisons are not
+a guarantee of performance on user devices. This is one CI run per browser.
+
+**Repeat:** manually launch the repository's *Build and deploy PFx Paint Studio*
+workflow using `workflow_dispatch`, then inspect the
+`test-artifacts/heavy-endurance.json` report. The 2000-stroke suite is
+manual-only after this initial verified run, so it does not delay every PR.
