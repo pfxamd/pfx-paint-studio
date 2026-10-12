@@ -70,6 +70,8 @@ export class PaintingEngine {
     this.imageView = null;
     this.imageBuffer = null;
     this.imagePointer = -1;
+    // Reuse compressed bytes while the exact same in-memory checkpoint lives.
+    this.serializedCheckpoints = new WeakMap();
     this.onHistoryChange = onHistoryChange;
     this.refreshBrush();
     this.renderNow();
@@ -371,9 +373,13 @@ export class PaintingEngine {
     }
     // Capture all exact tile bytes before the first await, so subsequent
     // drawing cannot make the cache disagree with this stroke-history clone.
-    const candidates = this.checkpoints.map(({ count, snapshot }) => ({
-      count, tiles: snapshot.exportTiles(this.canvas.width, this.canvas.height)
-    }));
+    const candidates = this.checkpoints.map(({ count, snapshot }) => {
+      const cached = this.serializedCheckpoints.get(snapshot);
+      return {
+        count, snapshot, cached,
+        tiles: cached ? null : snapshot.exportTiles(this.canvas.width, this.canvas.height)
+      };
+    });
     const fingerprint = async count => {
       const bytes = new TextEncoder().encode(JSON.stringify(saved.history.slice(0, count)));
       const digest = await crypto.subtle.digest("SHA-256", bytes);
@@ -389,15 +395,20 @@ export class PaintingEngine {
       // Keep the newest restorable state even when earlier snapshots would
       // exceed the autosave budget. Older ones improve only deep undo.
       for (const item of candidates.reverse()) {
-        const stream = new Blob([item.tiles]).stream()
-          .pipeThrough(new CompressionStream("deflate"));
-        const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
-        if (compressedSize + bytes.byteLength > 12 * 1024 * 1024) continue;
-        compressedSize += bytes.byteLength;
-        checkpoints.push({
-          count: item.count, digest: await fingerprint(item.count),
-          tilesDigest: await checksum(item.tiles), bytes
-        });
+        let entry = item.cached;
+        if (!entry) {
+          const stream = new Blob([item.tiles]).stream()
+            .pipeThrough(new CompressionStream("deflate"));
+          const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+          entry = {
+            count: item.count, digest: await fingerprint(item.count),
+            tilesDigest: await checksum(item.tiles), bytes
+          };
+          this.serializedCheckpoints.set(item.snapshot, entry);
+        }
+        if (compressedSize + entry.bytes.byteLength > 12 * 1024 * 1024) continue;
+        compressedSize += entry.bytes.byteLength;
+        checkpoints.push(entry);
       }
       if (checkpoints.length) {
         checkpoints.sort((a,b) => a.count - b.count);
