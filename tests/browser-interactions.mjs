@@ -359,6 +359,61 @@ try {
     "Tilt-sensitive brush pixels match SHA-256 after undo/redo and saved-stroke replay");
 
 
+
+  // A cache is optional. Valid caches accelerate restore; damaged and stale
+  // caches must safely fall back to exact historical stroke replay.
+  const checkpointSave = await page.evaluate(`(async () => {
+    const { PaintingEngine } = await import("./src/engine.js");
+    const canvas = document.createElement("canvas");
+    canvas.width = 320; canvas.height = 200;
+    const paint = await PaintingEngine.create(canvas,()=>{});
+    paint.configure({brushId:"calligraphy"});
+    const rect={left:0,top:0,width:320,height:200};
+    for(let n=0;n<26;n++) {
+      const event=(x,y,t)=>({clientX:x,clientY:y,pressure:1,pointerType:"mouse",timeStamp:t});
+      paint.begin(event(10+n*8,40+n%5*14,1000+n*30),rect);
+      paint.add(event(34+n*8,48+n%5*14,1015+n*30),rect);
+      paint.end();
+    }
+    paint.renderNow();
+    const hash = async canvas => {
+      const bytes=canvas.getContext("2d").getImageData(0,0,320,200).data;
+      const digest=await crypto.subtle.digest("SHA-256",bytes);
+      return Array.from(new Uint8Array(digest),x=>x.toString(16).padStart(2,"0")).join("");
+    };
+    const original=await hash(canvas);
+    const saved=await paint.snapshotForAutosave();
+    const bytes=saved.tileCache?.checkpoints?.[0]?.bytes;
+    const spawn=()=>new PaintingEngine(document.createElement("canvas"),paint.wasm,paint.brushSources,()=>{});
+    const run=async data=>{
+      const target=document.createElement("canvas");
+      target.width=320;target.height=200;
+      const restored=new PaintingEngine(target,paint.wasm,paint.brushSources,()=>{});
+      const usedCache=await restored.restoreSavedArtwork(data);
+      const checksum=await hash(target);
+      restored.undo();restored.redo();restored.renderNow();
+      const redo=await hash(target);
+      restored.releaseCheckpoints();restored.active.free();restored.surface.free();
+      return {usedCache,match:checksum===original&&redo===original};
+    };
+    const valid=await run(saved);
+    const broken=structuredClone(saved);
+    broken.tileCache.checkpoints[0].bytes[0]=0;
+    const invalid=await run(broken);
+    const old={...saved};
+    delete old.tileCache;
+    const legacy=await run(old);
+    paint.releaseCheckpoints();paint.active.free();paint.surface.free();
+    return {count:saved.tileCache?.checkpoints?.length||0,bytes:bytes?.byteLength||0,
+      valid,invalid,legacy};
+  })()`);
+  assert(checkpointSave.count>0 && checkpointSave.bytes>0 &&
+    checkpointSave.valid.usedCache && checkpointSave.valid.match,
+    "Compressed lossless fix15 checkpoint accelerates local artwork restore");
+  assert(!checkpointSave.invalid.usedCache && checkpointSave.invalid.match &&
+    !checkpointSave.legacy.usedCache && checkpointSave.legacy.match,
+    "Corrupt and older autosaves replay from the original strokes without data loss");
+
   const dirtyCheck = await page.evaluate(`(async () => {
     const api = await import("./pkg/hokusai_wasm.js");
     const wasm = await api.default();
