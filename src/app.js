@@ -1,8 +1,10 @@
-import { PaintingEngine } from "./engine.js";
+import { PaintingEngine, BRUSHES } from "./engine.js";
+import { CanvasViewport } from "./viewport.js";
 import { openArtworkDatabase, loadArtwork, createAutosave } from "./autosave.js";
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("paint-canvas");
+const stage = document.querySelector(".artboard-stage");
 const frame = $("artboard-frame");
 const status = $("status");
 const autosaveStatus = $("autosave-status");
@@ -14,7 +16,29 @@ const size = $("size");
 const undo = $("undo");
 const redo = $("redo");
 const toolButtons = Array.from(document.querySelectorAll("[data-tool]"));
-const brushButtons = Array.from(document.querySelectorAll("[data-brush]"));
+const brushGrid = document.querySelector(".brush-grid");
+brushGrid.replaceChildren(...BRUSHES.map((item) => {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "brush-card" + (item.id === "charcoal" ? " selected" : "");
+  button.dataset.brush = item.id;
+  button.title = item.name;
+  button.setAttribute("aria-pressed", String(item.id === "charcoal"));
+  const preview = document.createElement("canvas");
+  preview.className = "brush-preview";
+  preview.width = 144;
+  preview.height = 36;
+  preview.setAttribute("aria-hidden", "true");
+  const label = document.createElement("span");
+  label.textContent = item.name;
+  button.append(preview, label);
+  return button;
+}));
+const brushButtons = Array.from(brushGrid.querySelectorAll("[data-brush]"));
+const viewport = new CanvasViewport(stage, frame, $("zoom-label"), () => paintingBusy);
+$("zoom-out").addEventListener("click", () => viewport.zoom(viewport.scale / 1.25));
+$("zoom-in").addEventListener("click", () => viewport.zoom(viewport.scale * 1.25));
+$("zoom-fit").addEventListener("click", () => viewport.fit());
 const swatches = Array.from(document.querySelectorAll("[data-color]"));
 let engine = null;
 let autosave = null;
@@ -182,6 +206,22 @@ async function start() {
       message("Local save unavailable — export PNG");
     }
     engine = readyEngine;
+    let nextPreview = 0;
+    const renderNextPreview = () => {
+      if (nextPreview >= brushButtons.length) return;
+      const button = brushButtons[nextPreview++];
+      try {
+        engine.previewBrush(button.dataset.brush, button.querySelector("canvas"));
+      } catch (error) {
+        console.warn("Brush preview could not render:", button.dataset.brush, error);
+      }
+      if (typeof requestIdleCallback === "function") {
+        requestIdleCallback(renderNextPreview, { timeout: 500 });
+      } else {
+        setTimeout(renderNextPreview, 24);
+      }
+    };
+    requestAnimationFrame(renderNextPreview);
     indicator.classList.add("ready");
     document.querySelector(".engine-pulse").classList.add("ready");
     loading.classList.add("hidden");

@@ -50,7 +50,15 @@
       <main class="workspace">
         <div class="workspace-heading">
           <div><span class="eyebrow-dot"></span><span id="document-label">Untitled artwork</span></div>
-          <span class="dimension">1200 × 800 px</span>
+          <div class="workspace-view">
+            <span class="dimension">1200 × 800 px</span>
+            <div class="zoom-toolbar" role="group" aria-label="Canvas zoom">
+              <button type="button" id="zoom-out" aria-label="Zoom out" title="Zoom out (−)">−</button>
+              <output id="zoom-label" aria-label="Zoom level">100%</output>
+              <button type="button" id="zoom-in" aria-label="Zoom in" title="Zoom in (+)">+</button>
+              <button type="button" id="zoom-fit" title="Fit artboard (0)">Fit</button>
+            </div>
+          </div>
         </div>
         <div class="artboard-stage">
           <div class="artboard-frame" id="artboard-frame">
@@ -62,14 +70,14 @@
           <span class="status-indicator" id="engine-indicator"></span>
           <span id="status" role="status" aria-live="polite">Preparing local brush engine</span>
           <span id="autosave-status" class="autosave-status" role="status" aria-live="polite">Local save starting</span>
-          <span class="footer-hint">Drag to draw · B brush · E eraser · I colour picker</span>
+          <span class="footer-hint">Wheel to zoom · Space + drag to pan · B brush · E eraser · I picker</span>
         </div>
       </main>
 
       <aside class="inspector" aria-label="Painting settings">
         <div class="panel-head"><div><span class="panel-eyebrow">STUDIO / 01</span><h2>Brushes & colour</h2></div><span class="panel-symbol" aria-hidden="true">✳</span></div>
         <section class="settings-section brush-section" aria-label="Brush library">
-          <div class="section-label"><h3>Brush library</h3><span>04 brushes</span></div>
+          <div class="section-label"><h3>Brush library</h3><span>12 brushes</span></div>
           <div class="brush-grid">
             <button class="brush-card selected" data-brush="charcoal" aria-pressed="true"><span class="brush-stroke charcoal-stroke"></span><span>Charcoal</span></button>
             <button class="brush-card" data-brush="calligraphy" aria-pressed="false"><span class="brush-stroke calligraphy-stroke"></span><span>Ink</span></button>

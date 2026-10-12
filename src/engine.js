@@ -4,7 +4,15 @@ export const BRUSHES = Object.freeze([
   { id: "charcoal", filename: "charcoal.myb", name: "Charcoal" },
   { id: "calligraphy", filename: "calligraphy.myb", name: "Ink" },
   { id: "brush", filename: "brush.myb", name: "Paint" },
-  { id: "marker_fat", filename: "marker_fat.myb", name: "Marker" }
+  { id: "marker_fat", filename: "marker_fat.myb", name: "Marker" },
+  { id: "pencil", filename: "pencil.myb", name: "Pencil" },
+  { id: "dry_brush", filename: "dry_brush.myb", name: "Dry Brush" },
+  { id: "textured_ink", filename: "textured_ink.myb", name: "Texture Ink" },
+  { id: "watercolor_glazing", filename: "watercolor_glazing.myb", name: "Watercolour" },
+  { id: "watercolor_expressive", filename: "watercolor_expressive.myb", name: "Wet Brush" },
+  { id: "oil", filename: "oil.myb", name: "Oil Paint" },
+  { id: "acrylic", filename: "acrylic.myb", name: "Acrylic" },
+  { id: "pastel", filename: "pastel.myb", name: "Pastel" }
 ]);
 
 function hexToHsv(hex) {
@@ -230,6 +238,36 @@ export class PaintingEngine {
     this.redoStack = saved.redoStack;
     this.replay();
     this.renderNow();
+  }
+
+  previewBrush(id, preview) {
+    const width = preview.width, height = preview.height;
+    const paper = new HokusaiCanvas(width, height);
+    const brush = this.createBrush(id, "#242735", 0, false);
+    try {
+      paper.resetStroke();
+      for (let i = 0; i <= 30; i++) {
+        const t = i / 30;
+        paper.strokeTo(brush, 10 + t * (width - 20),
+          height * (0.58 - 0.17 * Math.sin(t * Math.PI * 2)),
+          0.35 + 0.65 * Math.sin(Math.PI * t), 0, 0, 0.02);
+      }
+      paper.finishStroke(brush);
+      paper.flush_pixels();
+      const bytes = new Uint8Array(this.wasm.memory.buffer, paper.pixelsPtr(), paper.pixelsLen());
+      const rgba = new Uint8ClampedArray(bytes.length);
+      for (let i = 0; i < bytes.length; i += 4) {
+        const amount = 255 - (bytes[i] + bytes[i + 1] + bytes[i + 2]) / 3;
+        rgba[i] = 230;
+        rgba[i + 1] = 227;
+        rgba[i + 2] = 221;
+        rgba[i + 3] = Math.min(255, Math.round(amount * 1.75));
+      }
+      preview.getContext("2d").putImageData(new ImageData(rgba, width, height), 0, 0);
+    } finally {
+      brush.free();
+      paper.free();
+    }
   }
 
   get canUndo() { return this.history.length > 0; }
