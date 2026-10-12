@@ -53,6 +53,7 @@ jobs:
           node --check src/autosave.js
           node --check sw.js
           node --check tests/browser-interactions.mjs
+          node --check tests/browser-input-latency.mjs
           node --check tests/browser-performance.mjs
           node --check tests/browser-endurance.mjs
           node --check tests/firefox-interactions.mjs
@@ -109,6 +110,21 @@ jobs:
           done
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           node tests/browser-interactions.mjs "$CHROME"
+
+      - name: Measure real input-to-canvas latency (PR and manual only)
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 8732 --directory _site >/tmp/pfx-latency-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" || true' EXIT
+          for i in 1 2 3 4 5; do
+            if curl -fsS http://127.0.0.1:8732/ >/dev/null; then break; fi
+            sleep 1
+          done
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          node tests/browser-input-latency.mjs "$CHROME"
 
       - name: Install headless Firefox for Linux browser checks
         run: |
@@ -167,6 +183,7 @@ jobs:
           path: |
             test-artifacts/*.png
             test-artifacts/performance*.json
+            test-artifacts/input-latency.json
             test-artifacts/firefox-results.json
             test-artifacts/endurance-report.json
           if-no-files-found: ignore
