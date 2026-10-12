@@ -54,6 +54,7 @@ jobs:
           node --check sw.js
           node --check tests/browser-interactions.mjs
           node --check tests/browser-performance.mjs
+          node --check tests/firefox-interactions.mjs
 
       - name: Test Hokusai brush engine
         run: |
@@ -108,6 +109,24 @@ jobs:
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           node tests/browser-interactions.mjs "$CHROME"
 
+      - name: Install headless Firefox for Linux browser checks
+        run: |
+          npm install --no-save --no-package-lock --ignore-scripts playwright@1.56.1
+          npx playwright install --with-deps firefox
+
+      - name: Test real Firefox drawing and tool interactions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 8732 --directory _site >/tmp/pfx-firefox-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" || true' EXIT
+          for i in 1 2 3 4 5; do
+            if curl -fsS http://127.0.0.1:8732/ >/dev/null; then break; fi
+            sleep 1
+          done
+          node tests/firefox-interactions.mjs
+
       - name: Benchmark long drawing sessions (manual run only)
         if: github.event_name == 'workflow_dispatch'
         shell: bash
@@ -132,6 +151,7 @@ jobs:
           path: |
             test-artifacts/*.png
             test-artifacts/performance*.json
+            test-artifacts/firefox-results.json
           if-no-files-found: ignore
 
       - name: Keep built browser runtime in this repository

@@ -16,6 +16,10 @@ Features: 12 bundled Hokusai-powered artist brushes with real rendered previews,
 - A service worker caches every runtime asset after first successful visit, permitting offline revisits where supported.
 - Autosave coalesces rapid updates, retries failed writes with bounded delays, and preserves an unreadable saved record under a separate local backup key before allowing a fresh session to save. Clearing redo-only history is supported.
 
+## Firefox on Linux regression tests
+
+Every push now runs the actual Playwright-managed Firefox browser on an Ubuntu GitHub Actions runner, in addition to the existing Chromium checks. It tests pointer drawing and event sample processing, real brush pigment, zoom and middle-button panning, undo/redo, erasing, the eyedropper, local autosave and reload recovery, PNG export, custom pointer and mobile overflow. Screenshots and a JSON report are kept in the workflow artifacts. Playwright is installed only in CI, never downloaded by the studio at runtime. This verifies Firefox in automated Linux; stylus hardware and the user's own Firefox installation still require hands-on testing.
+
 ## Performance verification
 
 Measured long-session results and limitations are documented in [`docs/performance-report.md`](docs/performance-report.md). The existing browser interaction checks always run on deployment; the long benchmark runs on manual workflow dispatch to keep normal publishing responsive.
