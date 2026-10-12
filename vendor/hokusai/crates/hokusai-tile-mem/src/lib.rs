@@ -10,7 +10,7 @@ use std::collections::{HashMap, HashSet};
 use hokusai_core::tile::{empty_tile, TilePixels};
 use hokusai_core::TiledSurface;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct MemSurface {
     tiles: HashMap<(i32, i32), Box<TilePixels>>,
     dirty: HashSet<(i32, i32)>,

@@ -85,6 +85,14 @@ impl HokusaiBrush {
     }
 }
 
+/// A compact in-memory checkpoint of the brush surface. This never leaves the
+/// browser, and excludes the full RGBA preview buffer.
+#[wasm_bindgen]
+pub struct HokusaiCheckpoint {
+    surface: MemSurface,
+    state: BrushState,
+}
+
 /// A drawable canvas. Holds the tiled surface, an active [`BrushState`],
 /// and the RGBA8 output buffer reused across `pixels()` calls.
 #[wasm_bindgen]
@@ -118,6 +126,23 @@ impl HokusaiCanvas {
             pixels,
             needs_full_flush: true,
         }
+    }
+
+    /// Clone the tiled surface and brush state after a completed stroke.
+    #[wasm_bindgen(js_name = checkpoint)]
+    pub fn checkpoint(&self) -> HokusaiCheckpoint {
+        HokusaiCheckpoint {
+            surface: self.surface.clone(),
+            state: self.state.clone(),
+        }
+    }
+
+    /// Restore a known tile checkpoint, invalidating the full output buffer.
+    #[wasm_bindgen(js_name = restoreCheckpoint)]
+    pub fn restore_checkpoint(&mut self, saved: &HokusaiCheckpoint) {
+        self.surface = saved.surface.clone();
+        self.state = saved.state.clone();
+        self.needs_full_flush = true;
     }
 
     /// Flush `slow_tracking` lag so the stroke's trailing pixels are painted.

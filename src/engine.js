@@ -63,6 +63,7 @@ export class PaintingEngine {
     this.active = null;
     this.history = [];
     this.redoStack = [];
+    this.checkpoints = [];
     this.current = null;
     this.strokeRect = null;
     this.renderQueued = false;
@@ -188,6 +189,7 @@ export class PaintingEngine {
     this.surface.resetStroke();
     this.history.push(this.current);
     this.redoStack = [];
+    this.recordCheckpoint();
     this.current = null;
     this.strokeRect = null;
     this.refreshBrush();
@@ -198,6 +200,7 @@ export class PaintingEngine {
   undo() {
     if (!this.history.length || this.current) return;
     this.redoStack.push(this.history.pop());
+    this.pruneCheckpoints();
     this.replay();
   }
 
@@ -211,16 +214,44 @@ export class PaintingEngine {
     if (this.current) this.end();
     this.history = [];
     this.redoStack = [];
+    this.releaseCheckpoints();
     this.surface.clear();
     this.onHistoryChange?.();
     this.requestRender();
   }
 
+  // Cache up to three tiled-surface snapshots, every 24 completed strokes.
+  // Each checkpoint can be restored without re-running the older brush dabs.
+  recordCheckpoint() {
+    const count = this.history.length;
+    if (!count || count % 24 !== 0 || this.checkpoints.some(c => c.count === count)) return;
+    this.checkpoints.push({ count, snapshot: this.surface.checkpoint() });
+    while (this.checkpoints.length > 3) {
+      this.checkpoints.shift().snapshot.free();
+    }
+  }
+
+  pruneCheckpoints() {
+    while (this.checkpoints.length && this.checkpoints[this.checkpoints.length - 1].count > this.history.length) {
+      this.checkpoints.pop().snapshot.free();
+    }
+  }
+
+  releaseCheckpoints() {
+    for (const item of this.checkpoints) item.snapshot.free();
+    this.checkpoints.length = 0;
+  }
+
   replay() {
-    this.surface.clear();
+    this.pruneCheckpoints();
+    const base = this.checkpoints[this.checkpoints.length - 1];
+    if (base) this.surface.restoreCheckpoint(base.snapshot);
+    else this.surface.clear();
     const cache = new Map();
     try {
-      for (const stroke of this.history) {
+      const from = base?.count || 0;
+      for (let index = from; index < this.history.length; index++) {
+        const stroke = this.history[index];
         const key = [stroke.brushId, stroke.color, stroke.size, stroke.eraser, stroke.inputType].join("|");
         let brush = cache.get(key);
         if (!brush) {
@@ -234,12 +265,19 @@ export class PaintingEngine {
         }
         this.surface.finishStroke(brush);
         this.surface.resetStroke();
+        if ((index + 1) % 24 === 0) this.recordCheckpointFor(index + 1);
       }
     } finally {
       for (const brush of cache.values()) brush.free();
     }
     this.onHistoryChange?.();
     this.requestRender();
+  }
+
+  recordCheckpointFor(count) {
+    if (this.checkpoints.some(c => c.count === count)) return;
+    this.checkpoints.push({ count, snapshot: this.surface.checkpoint() });
+    while (this.checkpoints.length > 3) this.checkpoints.shift().snapshot.free();
   }
 
   requestRender() {
@@ -301,6 +339,7 @@ export class PaintingEngine {
 
   restoreArtwork(saved) {
     if (this.current) throw new Error("Cannot restore during a stroke");
+    this.releaseCheckpoints();
     this.history = saved.history;
     this.redoStack = saved.redoStack;
     this.replay();
