@@ -14,6 +14,8 @@ use hokusai_core::TiledSurface;
 pub struct MemSurface {
     tiles: HashMap<(i32, i32), Box<TilePixels>>,
     dirty: HashSet<(i32, i32)>,
+    /// Accumulate tiles written between browser presentation frames.
+    modified: HashSet<(i32, i32)>,
     in_atomic: bool,
 }
 
@@ -29,10 +31,16 @@ impl MemSurface {
     pub fn tile_count(&self) -> usize {
         self.tiles.len()
     }
+
+    /// Drain pixels touched by the brush, independent of atomic boundaries.
+    pub fn take_modified_tiles(&mut self) -> Vec<(i32, i32)> {
+        self.modified.drain().collect()
+    }
 }
 
 impl TiledSurface for MemSurface {
     fn tile_request_start(&mut self, tx: i32, ty: i32) -> &mut TilePixels {
+        self.modified.insert((tx, ty));
         if self.in_atomic {
             self.dirty.insert((tx, ty));
         }
@@ -74,6 +82,8 @@ mod tests {
         assert_eq!(dirty, vec![(2, -1)]);
         assert_eq!(s.tile(2, -1).unwrap()[0][0], [1, 2, 3, 4]);
         assert_eq!(s.tile(0, 0), None);
+        assert_eq!(s.take_modified_tiles(), vec![(2, -1)]);
+        assert!(s.take_modified_tiles().is_empty());
         let _ = TILE_SIZE;
     }
 }

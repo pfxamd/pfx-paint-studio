@@ -86,6 +86,7 @@ pub struct HokusaiCanvas {
     width: u32,
     height: u32,
     pixels: Vec<u8>,
+    needs_full_flush: bool,
 }
 
 #[wasm_bindgen]
@@ -107,6 +108,7 @@ impl HokusaiCanvas {
             width,
             height,
             pixels,
+            needs_full_flush: true,
         }
     }
 
@@ -130,6 +132,7 @@ impl HokusaiCanvas {
     pub fn clear(&mut self) {
         self.surface = MemSurface::new();
         self.state.reset();
+        self.needs_full_flush = true;
     }
 
     /// Feed one pointer event. `dtime` is seconds since the previous call.
@@ -178,6 +181,43 @@ impl HokusaiCanvas {
     /// wasm memory. Call `flush_pixels()` first to refresh the buffer.
     pub fn flush_pixels(&mut self) {
         flatten(&self.surface, self.width, self.height, &mut self.pixels);
+        self.surface.take_modified_tiles();
+        self.needs_full_flush = false;
+    }
+
+    /// Update only tiles affected since the last flush. Returns a small
+    /// [x, y, width, height] dirty region in artwork pixel coordinates.
+    /// Empty means no visible pixel data has changed.
+    #[wasm_bindgen(js_name = flushDirtyPixels)]
+    pub fn flush_dirty_pixels(&mut self) -> Vec<u32> {
+        if self.needs_full_flush {
+            self.flush_pixels();
+            return vec![0, 0, self.width, self.height];
+        }
+        let modified = self.surface.take_modified_tiles();
+        let mut left = self.width as i32;
+        let mut top = self.height as i32;
+        let mut right = 0i32;
+        let mut bottom = 0i32;
+        let size = TILE_SIZE as i32;
+        for (tx, ty) in modified {
+            let x = tx * size;
+            let y = ty * size;
+            // Tiles can extend beyond the artwork; ignore off-canvas edits.
+            if x >= self.width as i32 || y >= self.height as i32 || x + size <= 0 || y + size <= 0 {
+                continue;
+            }
+            raster_tile(&self.surface, self.width, self.height, &mut self.pixels, tx, ty);
+            left = left.min(x.max(0));
+            top = top.min(y.max(0));
+            right = right.max((x + size).min(self.width as i32));
+            bottom = bottom.max((y + size).min(self.height as i32));
+        }
+        if right <= left || bottom <= top {
+            Vec::new()
+        } else {
+            vec![left as u32, top as u32, (right - left) as u32, (bottom - top) as u32]
+        }
     }
 
     #[wasm_bindgen(js_name = pixelsPtr)]
@@ -202,47 +242,51 @@ impl HokusaiCanvas {
 }
 
 fn flatten(surface: &MemSurface, w: u32, h: u32, out: &mut [u8]) {
-    // Reset to white.
-    for px in out.chunks_exact_mut(4) {
-        px[0] = 255;
-        px[1] = 255;
-        px[2] = 255;
-        px[3] = 255;
-    }
+    // Full frame for export, colour sampling, initial render and undo.
+    out.fill(255);
     let ts = TILE_SIZE as i32;
-    let tiles_x = (w as i32 + ts - 1) / ts;
-    let tiles_y = (h as i32 + ts - 1) / ts;
+    for ty in 0..(h as i32 + ts - 1) / ts {
+        for tx in 0..(w as i32 + ts - 1) / ts {
+            raster_tile(surface, w, h, out, tx, ty);
+        }
+    }
+}
 
-    for ty in 0..tiles_y {
-        for tx in 0..tiles_x {
-            let Some(tile) = surface.tile(tx, ty) else {
+fn raster_tile(surface: &MemSurface, w: u32, h: u32, out: &mut [u8], tx: i32, ty: i32) {
+    let Some(tile) = surface.tile(tx, ty) else {
+        return;
+    };
+    let ts = TILE_SIZE as i32;
+    for ly in 0..TILE_SIZE {
+        let wy = ty * ts + ly as i32;
+        if wy < 0 || wy >= h as i32 {
+            continue;
+        }
+        for lx in 0..TILE_SIZE {
+            let wx = tx * ts + lx as i32;
+            if wx < 0 || wx >= w as i32 {
                 continue;
-            };
-            for ly in 0..TILE_SIZE {
-                for lx in 0..TILE_SIZE {
-                    let wx = tx * ts + lx as i32;
-                    let wy = ty * ts + ly as i32;
-                    if wx < 0 || wy < 0 || wx >= w as i32 || wy >= h as i32 {
-                        continue;
-                    }
-                    let p = tile[ly][lx];
-                    let a = fix15::to_f32(p[3]);
-                    if a <= 0.0 {
-                        continue;
-                    }
-                    let r = fix15::to_f32(p[0]) / a;
-                    let g = fix15::to_f32(p[1]) / a;
-                    let b = fix15::to_f32(p[2]) / a;
-                    let or = r * a + 1.0 * (1.0 - a);
-                    let og = g * a + 1.0 * (1.0 - a);
-                    let ob = b * a + 1.0 * (1.0 - a);
-                    let idx = ((wy as u32 * w + wx as u32) * 4) as usize;
-                    out[idx] = (linear_to_srgb(or).clamp(0.0, 1.0) * 255.0).round() as u8;
-                    out[idx + 1] = (linear_to_srgb(og).clamp(0.0, 1.0) * 255.0).round() as u8;
-                    out[idx + 2] = (linear_to_srgb(ob).clamp(0.0, 1.0) * 255.0).round() as u8;
-                    out[idx + 3] = 255;
-                }
             }
+            let p = tile[ly][lx];
+            let idx = ((wy as u32 * w + wx as u32) * 4) as usize;
+            let a = fix15::to_f32(p[3]);
+            if a <= 0.0 {
+                out[idx] = 255;
+                out[idx + 1] = 255;
+                out[idx + 2] = 255;
+                out[idx + 3] = 255;
+                continue;
+            }
+            let r = fix15::to_f32(p[0]) / a;
+            let g = fix15::to_f32(p[1]) / a;
+            let b = fix15::to_f32(p[2]) / a;
+            let or = r * a + (1.0 - a);
+            let og = g * a + (1.0 - a);
+            let ob = b * a + (1.0 - a);
+            out[idx] = (linear_to_srgb(or).clamp(0.0, 1.0) * 255.0).round() as u8;
+            out[idx + 1] = (linear_to_srgb(og).clamp(0.0, 1.0) * 255.0).round() as u8;
+            out[idx + 2] = (linear_to_srgb(ob).clamp(0.0, 1.0) * 255.0).round() as u8;
+            out[idx + 3] = 255;
         }
     }
 }
