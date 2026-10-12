@@ -42,3 +42,35 @@ At 500 strokes the restoration took **264 ms**, and IndexedDB autosave finished 
 **Interpretation:** no growth in the WASM buffer high-water mark or DOM node count (407 at every sample) was observed between strokes 750 and 1000. The JavaScript heap grew with the intentionally growing 1000-stroke history, which is expected. WASM buffer size is reserved memory, *not* live Rust allocation size. These observations do **not** establish that long-term memory leaks are absent, nor do they measure actual mouse-to-pixel latency or Firefox performance on the user's workstation.
 
 The long-session test is kept in `tests/browser-endurance.mjs`, and emits `test-artifacts/endurance-report.json`. Run it explicitly using `workflow_dispatch` alongside the standard browser benchmark; normal pushes continue to run the shorter Chromium/Firefox functionality tests without delaying deployments.
+
+## Interactive pointer-to-Canvas2D upload latency (2026-10-12)
+
+The isolated regression `tests/browser-input-latency.mjs` sends actual Chromium
+mouse events over a 1200 × 800 artwork and times input-event timestamps through
+the return of `CanvasRenderingContext2D.putImageData`. It separately times
+stroke processing, dirty-tile rasterization and the Canvas pixel upload.
+The test uses headless Chromium/Linux with `--disable-gpu`, 65 paced mouse
+moves per brush scenario and the real locally bundled WASM engine. It does
+**not** measure display-compositor presentation, pen hardware or photon latency.
+
+The baseline [run 38251818923](https://github.com/pfxamd/pfx-paint-studio/actions/runs/38251818923)
+used the original raster path with instrumentation only. The optimized
+[run 38252698751](https://github.com/pfxamd/pfx-paint-studio/actions/runs/38252698751)
+uses an exact-bit-pattern cache for repeated floating-point sRGB channel
+conversions, without changing the arithmetic for a cache miss.
+
+| Scenario | Raster p95 before → after | Event-to-upload p95 before → after |
+|---|---:|---:|
+| Pencil, default size | 0.2 → 0.2 ms | 8.3 → 8.0 ms |
+| Paint, default size | 1.3 → 0.4 ms | 9.4 → 8.4 ms |
+| Paint, large size (+1 log-radius) | 5.2 → 1.0 ms | 13.3 → 8.9 ms |
+
+The large Paint brush's raster median changed from **4.7 to 0.8 ms**. Pixel
+upload itself remained at **0.1 ms p95 or less** for these scenarios. With
+the test's 8 ms-paced input, frame upload gaps were generally around 16–17 ms
+in both runs. Results are from **one CI sample per revision**, not matched
+hardware sessions or statistical guarantees; variability and brush-specific
+effects require more measurements. Existing browser tests still verify ink,
+undo/redo, offline runtime, local autosave, and recovery. The sRGB cache
+uses exact `f32` bit-pattern keys so repeated values produce the same 8-bit
+channels as the original conversion, rather than approximating colors.

@@ -93,6 +93,61 @@ pub struct HokusaiCheckpoint {
     state: BrushState,
 }
 
+// Reuse the exact sRGB result for repeated floating-point channel values.
+// Keys are full f32 bit patterns: cache hits cannot change pixel rounding.
+const SRGB_CACHE_SIZE: usize = 2048;
+struct SrgbCache {
+    keys: [u32; SRGB_CACHE_SIZE],
+    values: [u8; SRGB_CACHE_SIZE],
+}
+
+impl SrgbCache {
+    fn new() -> Self {
+        Self {
+            keys: [u32::MAX; SRGB_CACHE_SIZE],
+            values: [0; SRGB_CACHE_SIZE],
+        }
+    }
+
+    #[inline]
+    fn encode(&mut self, linear: f32) -> u8 {
+        let key = linear.to_bits();
+        let slot = (key.wrapping_mul(0x9E37_79B1) >> 21) as usize;
+        if self.keys[slot] == key {
+            return self.values[slot];
+        }
+        let value = (linear_to_srgb(linear).clamp(0.0, 1.0) * 255.0).round() as u8;
+        self.keys[slot] = key;
+        self.values[slot] = value;
+        value
+    }
+}
+
+#[cfg(test)]
+mod srgb_cache_tests {
+    use super::*;
+
+    #[test]
+    fn cached_output_is_byte_exact_for_repeated_and_colliding_channels() {
+        let mut cache = SrgbCache::new();
+        // Exercise channel/alpha combinations across the fixed15 gamut,
+        // including repeated inputs and hash-slot collisions.
+        for n in 0..100_000u32 {
+            let a = (n.wrapping_mul(197) % 32_769) as f32 / 32_768.0;
+            let premul = (n.wrapping_mul(311) % 32_769) as f32 / 32_768.0;
+            let value = if a == 0.0 {
+                1.0
+            } else {
+                let channel = premul.min(a);
+                (channel / a) * a + (1.0 - a)
+            };
+            let expected = (linear_to_srgb(value).clamp(0.0, 1.0) * 255.0).round() as u8;
+            assert_eq!(cache.encode(value), expected);
+            assert_eq!(cache.encode(value), expected);
+        }
+    }
+}
+
 /// A drawable canvas. Holds the tiled surface, an active [`BrushState`],
 /// and the RGBA8 output buffer reused across `pixels()` calls.
 #[wasm_bindgen]
@@ -103,6 +158,7 @@ pub struct HokusaiCanvas {
     height: u32,
     pixels: Vec<u8>,
     needs_full_flush: bool,
+    srgb_cache: SrgbCache,
 }
 
 #[wasm_bindgen]
@@ -125,6 +181,7 @@ impl HokusaiCanvas {
             height,
             pixels,
             needs_full_flush: true,
+            srgb_cache: SrgbCache::new(),
         }
     }
 
@@ -203,7 +260,7 @@ impl HokusaiCanvas {
     /// in-place into the canvas's own buffer first, so the per-frame cost
     /// is one memcpy into the JS Uint8Array.
     pub fn pixels(&mut self) -> Vec<u8> {
-        flatten(&self.surface, self.width, self.height, &mut self.pixels);
+        flatten(&self.surface, self.width, self.height, &mut self.pixels, &mut self.srgb_cache);
         self.pixels.clone()
     }
 
@@ -213,7 +270,7 @@ impl HokusaiCanvas {
     /// canvas.pixels_len())` and `ImageData.data.set` directly from
     /// wasm memory. Call `flush_pixels()` first to refresh the buffer.
     pub fn flush_pixels(&mut self) {
-        flatten(&self.surface, self.width, self.height, &mut self.pixels);
+        flatten(&self.surface, self.width, self.height, &mut self.pixels, &mut self.srgb_cache);
         self.surface.take_modified_tiles();
         self.needs_full_flush = false;
     }
@@ -240,7 +297,7 @@ impl HokusaiCanvas {
             if x >= self.width as i32 || y >= self.height as i32 || x + size <= 0 || y + size <= 0 {
                 continue;
             }
-            raster_tile(&self.surface, self.width, self.height, &mut self.pixels, tx, ty);
+            raster_tile(&self.surface, self.width, self.height, &mut self.pixels, tx, ty, &mut self.srgb_cache);
             left = left.min(x.max(0));
             top = top.min(y.max(0));
             right = right.max((x + size).min(self.width as i32));
@@ -274,18 +331,18 @@ impl HokusaiCanvas {
     }
 }
 
-fn flatten(surface: &MemSurface, w: u32, h: u32, out: &mut [u8]) {
+fn flatten(surface: &MemSurface, w: u32, h: u32, out: &mut [u8], cache: &mut SrgbCache) {
     // Full frame for export, colour sampling, initial render and undo.
     out.fill(255);
     let ts = TILE_SIZE as i32;
     for ty in 0..(h as i32 + ts - 1) / ts {
         for tx in 0..(w as i32 + ts - 1) / ts {
-            raster_tile(surface, w, h, out, tx, ty);
+            raster_tile(surface, w, h, out, tx, ty, cache);
         }
     }
 }
 
-fn raster_tile(surface: &MemSurface, w: u32, h: u32, out: &mut [u8], tx: i32, ty: i32) {
+fn raster_tile(surface: &MemSurface, w: u32, h: u32, out: &mut [u8], tx: i32, ty: i32, cache: &mut SrgbCache) {
     let Some(tile) = surface.tile(tx, ty) else {
         return;
     };
@@ -316,9 +373,9 @@ fn raster_tile(surface: &MemSurface, w: u32, h: u32, out: &mut [u8], tx: i32, ty
             let or = r * a + (1.0 - a);
             let og = g * a + (1.0 - a);
             let ob = b * a + (1.0 - a);
-            out[idx] = (linear_to_srgb(or).clamp(0.0, 1.0) * 255.0).round() as u8;
-            out[idx + 1] = (linear_to_srgb(og).clamp(0.0, 1.0) * 255.0).round() as u8;
-            out[idx + 2] = (linear_to_srgb(ob).clamp(0.0, 1.0) * 255.0).round() as u8;
+            out[idx] = cache.encode(or);
+            out[idx + 1] = cache.encode(og);
+            out[idx + 2] = cache.encode(ob);
             out[idx + 3] = 255;
         }
     }
