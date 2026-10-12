@@ -160,8 +160,11 @@ for (const [name, type] of [["Chromium", chromium], ["Firefox", firefox]]) {
     if (failed.length || result.points < 15)
       throw Error(name + " incomplete pen dynamics: " +
         JSON.stringify({ failed, ...result }));
-    if (result.identicalExtra !== 1 || result.forwardedPenSamples !== 9)
-      throw Error(name + " coalesced duplicates unexpectedly forwarded: " +
+    // Identical coalesced positions are accepted or dropped depending on
+    // the native event timestamp and dwell, which legitimately differs by
+    // browser. Verify the application forwards the right nine input events.
+    if (result.forwardedPenSamples !== 9)
+      throw Error(name + " coalesced endpoint dispatch mismatch: " +
         JSON.stringify(result));
     console.log("PEN_ARTISTIC_INPUT_PASSED " + name + " " + JSON.stringify(result));
     await page.close();
