@@ -410,13 +410,19 @@ try {
     const partlyDamaged=structuredClone(saved);
     partlyDamaged.tileCache.checkpoints[0].bytes[0]=0;
     const partial=await run(partlyDamaged);
+    // Previously saved tiles were captured at 24-stroke boundaries.
+    // They must remain compatible with the new four-stroke cadence.
+    const oldCadence=structuredClone(saved);
+    oldCadence.tileCache.checkpoints=oldCadence.tileCache.checkpoints
+      .filter(entry=>entry.count%24===0);
+    const priorCadence=await run(oldCadence);
     const old={...saved};
     delete old.tileCache;
     const legacy=await run(old);
     await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
     paint.releaseCheckpoints();paint.active.free();paint.surface.free();
     return {count:saved.tileCache?.checkpoints?.length||0,bytes:bytes?.byteLength||0,
-      reusedPayload,valid,invalid,digestMismatch,partial,legacy};
+      reusedPayload,valid,invalid,digestMismatch,partial,priorCadence,legacy};
   })()`);
   assert(checkpointSave.count>0 && checkpointSave.bytes>0 &&
     checkpointSave.reusedPayload &&
@@ -425,6 +431,7 @@ try {
   assert(!checkpointSave.invalid.usedCache && checkpointSave.invalid.match &&
     !checkpointSave.digestMismatch.usedCache && checkpointSave.digestMismatch.match &&
     checkpointSave.partial.usedCache && checkpointSave.partial.match &&
+    checkpointSave.priorCadence.usedCache && checkpointSave.priorCadence.match &&
     !checkpointSave.legacy.usedCache && checkpointSave.legacy.match,
     "Corrupt and older autosaves replay from the original strokes without data loss");
 
