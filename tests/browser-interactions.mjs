@@ -401,18 +401,22 @@ try {
     const broken=structuredClone(saved);
     broken.tileCache.checkpoints[0].bytes[0]=0;
     const invalid=await run(broken);
+    const badDigest=structuredClone(saved);
+    badDigest.tileCache.checkpoints[0].tilesDigest="0".repeat(64);
+    const digestMismatch=await run(badDigest);
     const old={...saved};
     delete old.tileCache;
     const legacy=await run(old);
     await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
     paint.releaseCheckpoints();paint.active.free();paint.surface.free();
     return {count:saved.tileCache?.checkpoints?.length||0,bytes:bytes?.byteLength||0,
-      valid,invalid,legacy};
+      valid,invalid,digestMismatch,legacy};
   })()`);
   assert(checkpointSave.count>0 && checkpointSave.bytes>0 &&
     checkpointSave.valid.usedCache && checkpointSave.valid.match,
     "Compressed lossless fix15 checkpoint accelerates local artwork restore");
   assert(!checkpointSave.invalid.usedCache && checkpointSave.invalid.match &&
+    !checkpointSave.digestMismatch.usedCache && checkpointSave.digestMismatch.match &&
     !checkpointSave.legacy.usedCache && checkpointSave.legacy.match,
     "Corrupt and older autosaves replay from the original strokes without data loss");
 
