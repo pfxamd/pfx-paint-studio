@@ -59,6 +59,13 @@ export class HokusaiBrush {
     setRadiusLog(log2_radius) {
         wasm.hokusaibrush_setRadiusLog(this.__wbg_ptr, log2_radius);
     }
+    /**
+     * Keep mouse input responsive without changing the original brush preset.
+     * Only the slow-tracking base is capped; per-dab brush character remains.
+     */
+    setResponsiveMouse() {
+        wasm.hokusaibrush_setResponsiveMouse(this.__wbg_ptr);
+    }
 }
 if (Symbol.dispose) HokusaiBrush.prototype[Symbol.dispose] = HokusaiBrush.prototype.free;
 
