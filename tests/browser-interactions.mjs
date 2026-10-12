@@ -294,6 +294,8 @@ try {
     const redone=fingerprint();
     paint.clear();
     const freed=paint.checkpoints.length===0;
+    // Let queued animation frames finish before releasing the WASM canvas.
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     paint.active.free();
     paint.surface.free();
     return {checkpoints,before,undone,redone,undoMs,freed};
