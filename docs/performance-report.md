@@ -74,3 +74,44 @@ effects require more measurements. Existing browser tests still verify ink,
 undo/redo, offline runtime, local autosave, and recovery. The sRGB cache
 uses exact `f32` bit-pattern keys so repeated values produce the same 8-bit
 channels as the original conversion, rather than approximating colors.
+
+## Heavy-brush latency regression and exact-output transfer optimization (2026-10-12)
+
+The extended, opt-in test `PFX_LATENCY_STRESS=1 node tests/browser-input-latency.mjs`
+exercises seven additional large/textured brush scenarios with real browser-dispatched
+mouse events, measuring both brush processing and dirty-pixel rasterization.
+It runs headless Chromium/Linux on the GitHub Actions CI runner with
+software rendering. The tested output endpoint is the completion of the
+Canvas 2D pixel upload, **not physical screen presentation**.
+
+One [unoptimized baseline run (38255148561)](https://github.com/pfxamd/pfx-paint-studio/actions/runs/38255148561)
+was compared to one [experimental optimized run (38255677118)](https://github.com/pfxamd/pfx-paint-studio/actions/runs/38255677118).
+Both used 65 paced moves per scenario on a 1200 × 800 canvas:
+
+| Brush / size offset | Dirty raster p95, before → after | Event-to-upload p95, before → after | Frame gaps over 25 ms, before → after |
+|---|---:|---:|---:|
+| Pencil / 0 | 0.2 → 0.2 ms | 8.1 → 8.8 ms | 0 → 0 |
+| Paint / 0 | 0.5 → 0.2 ms | 8.6 → 8.3 ms | 0 → 0 |
+| Paint / +1 | 0.9 → 0.5 ms | 9.1 → 8.8 ms | 0 → 0 |
+| Paint / +2 | 3.4 → 1.8 ms | 12.2 → 11.0 ms | 0 → 0 |
+| Expressive watercolor / +1 | **21.5 → 7.5 ms** | **39.1 → 18.3 ms** | **16 → 0** |
+| Oil / +1 | 2.4 → 1.0 ms | 10.7 → 9.3 ms | 0 → 0 |
+| Pastel / +1 | 3.7 → 1.4 ms | 12.4 → 10.6 ms | 0 → 0 |
+| Marker / +1 | 1.4 → 0.5 ms | 9.4 → 8.6 ms | 0 → 0 |
+| Dry Brush / +1 | 1.5 → 0.6 ms | 9.7 → 8.7 ms | 0 → 0 |
+| Texture Ink / +1 | 1.9 → 0.7 ms | 10.0 → 8.7 ms | 1 → 0 |
+
+The additional optimization keeps the existing bit-exact sRGB cache and uses
+a shared 4096-bin table for the 8-bit conversion. When *both ends of a bin*
+round to the same 8-bit channel value, monotonicity guarantees that all
+intermediate inputs yield that byte. Boundary-crossing bins still run the
+original `linear_to_srgb` computation, without approximating the output.
+A Rust regression checks 1,000,000 evenly spaced values and neighbors around
+every 8-bit output transition, plus the existing randomized channel tests.
+All existing browser interaction tests continued to pass.
+
+The larger watercolor scenario showed a roughly **65% reduction in raster p95**
+and **53% reduction in event-to-upload p95**. This is one pair of CI runs:
+variability, hardware stylus latency, long-session behavior, and other
+operating systems were **not** established by these measurements. The stress
+run is optional to keep routine CI and deployments short.
