@@ -59,7 +59,7 @@ function updateHistory(changed = false) {
   undo.disabled = !engine?.canUndo;
   redo.disabled = !engine?.canRedo;
   // Only completed strokes, undo/redo and clear change the saved artwork.
-  if (changed && engine && autosave) autosave.save(() => engine.snapshot());
+  if (changed && engine && autosave) autosave.save(() => engine.snapshotForAutosave());
 }
 function useTool(name) {
   if (!["brush", "eraser", "picker"].includes(name)) return;
@@ -209,7 +209,7 @@ async function start() {
       try {
         const saved = await loadArtwork(database, canvas.width, canvas.height);
         if (saved) {
-          readyEngine.restoreArtwork(saved);
+          await readyEngine.restoreSavedArtwork(saved);
           recovered = saved.history.length > 0 || saved.redoStack.length > 0;
         }
       } catch (readError) {
