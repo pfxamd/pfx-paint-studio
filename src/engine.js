@@ -237,12 +237,12 @@ export class PaintingEngine {
     this.requestRender();
   }
 
-  // Cache up to three tiled-surface snapshots, every 8 completed strokes.
+  // Cache up to three tiled-surface snapshots, every 4 completed strokes.
   // A smaller replay tail bounds undo/redo work for large brush strokes.
   // Each checkpoint can be restored without re-running the older brush dabs.
   recordCheckpoint() {
     const count = this.history.length;
-    if (!count || count % 8 !== 0 || this.checkpoints.some(c => c.count === count)) return;
+    if (!count || count % 4 !== 0 || this.checkpoints.some(c => c.count === count)) return;
     this.checkpoints.push({ count, snapshot: this.surface.checkpoint() });
     while (this.checkpoints.length > 3) {
       this.checkpoints.shift().snapshot.free();
@@ -283,7 +283,7 @@ export class PaintingEngine {
         }
         this.surface.finishStroke(brush);
         this.surface.resetStroke();
-        if ((index + 1) % 8 === 0) this.recordCheckpointFor(index + 1);
+        if ((index + 1) % 4 === 0) this.recordCheckpointFor(index + 1);
       }
     } finally {
       for (const brush of cache.values()) brush.free();
@@ -448,7 +448,7 @@ export class PaintingEngine {
     for (const entry of cached.checkpoints.slice(0, 3)) {
       try {
         if (!Number.isInteger(entry.count) || entry.count <= restoredCount ||
-            entry.count > this.history.length || entry.count % 8 !== 0 ||
+            entry.count > this.history.length || entry.count % 4 !== 0 ||
             !(entry.bytes instanceof Uint8Array) ||
             entry.bytes.byteLength > 12 * 1024 * 1024 ||
             typeof entry.digest !== "string" ||
