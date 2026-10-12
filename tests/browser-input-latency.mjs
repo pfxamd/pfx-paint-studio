@@ -74,9 +74,12 @@ function installMeasurement() {
       samples: 0,
       pending: null,
       frames: [],
+      addMs: [],
+      rasterStart: null,
       begin(brush, size) {
         this.pending = null;
         this.frames = [];
+        this.addMs = [];
         this.samples = 0;
         document.querySelector('[data-brush="' + brush + '"]').click();
         const slider = document.getElementById("size");
@@ -90,11 +93,15 @@ function installMeasurement() {
       const start = performance.now();
       const previous = this.current?.points.length || 0;
       const result = add.call(this, event, ...rest);
+      const finished = performance.now();
       if (this.canvas === target && this.current?.points.length > previous) {
+        measure.addMs.push(finished - start);
         if (!measure.pending) measure.pending = {
-          first: start, last: start, accepted: 0, eventDelay: []
+          first: start, last: start, firstEvent: event.timeStamp,
+          latestEvent: event.timeStamp, accepted: 0, eventDelay: []
         };
         measure.pending.last = start;
+        measure.pending.latestEvent = event.timeStamp;
         measure.pending.accepted++;
         measure.samples++;
         const delay = start - event.timeStamp;
@@ -103,6 +110,12 @@ function installMeasurement() {
         }
       }
       return result;
+    };
+    const render = PaintingEngine.prototype.renderDirty;
+    PaintingEngine.prototype.renderDirty = function (...args) {
+      if (this.canvas === target) measure.rasterStart = performance.now();
+      try { return render.call(this, ...args); }
+      finally { if (this.canvas === target) measure.rasterStart = null; }
     };
     const put = CanvasRenderingContext2D.prototype.putImageData;
     CanvasRenderingContext2D.prototype.putImageData = function (...args) {
@@ -115,6 +128,8 @@ function installMeasurement() {
         measure.frames.push({
           inputToUploadMs: end - pending.first,
           latestToUploadMs: end - pending.last,
+          eventToUploadMs: end - pending.firstEvent,
+          rasterMs: measure.rasterStart === null ? null : start - measure.rasterStart,
           pixelUploadMs: end - start,
           accepted: pending.accepted,
           dirtyPixels: args.length >= 7 ? args[5] * args[6] : target.width * target.height,
@@ -144,6 +159,9 @@ function reportScenario(brush, size) {
     firstSampleToUploadMs: stats(frames.map(x => x.inputToUploadMs)),
     lastSampleToUploadMs: stats(frames.map(x => x.latestToUploadMs)),
     pixelUploadMs: stats(frames.map(x => x.pixelUploadMs)),
+    addProcessingMs: stats(m.addMs),
+    rasterMs: stats(frames.map(x => x.rasterMs)),
+    eventToUploadMs: stats(frames.map(x => x.eventToUploadMs)),
     eventDelayMs: stats(frames.map(x => x.eventDelayMs)),
     acceptedPerFrame: stats(frames.map(x => x.accepted)),
     dirtyAreaPercent: stats(frames.map(x => x.dirtyPixels / (1200 * 800) * 100)),
