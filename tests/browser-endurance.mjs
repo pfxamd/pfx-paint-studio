@@ -38,10 +38,14 @@ async function connect(url){
  return {
   send(method,params={}){
    const id=++next;
-   return Promise.race([
-    new Promise((resolve,reject)=>{tasks.set(id,{resolve,reject});ws.send(JSON.stringify({id,method,params}));}),
-    sleep(90000).then(()=>{throw Error("CDP timeout "+method);})
-   ]);
+   return new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>{tasks.delete(id);reject(Error("CDP timeout "+method));},90000);
+    tasks.set(id,{
+      resolve:value=>{clearTimeout(timer);resolve(value);},
+      reject:error=>{clearTimeout(timer);reject(error);}
+    });
+    ws.send(JSON.stringify({id,method,params}));
+   });
   },
   async evaluate(expression){
    const answer=await this.send("Runtime.evaluate",{expression,returnByValue:true,awaitPromise:true});
