@@ -128,7 +128,7 @@ export function createAutosave(db, onStatus) {
         const makeSnapshot = pending;
         pending = null;
         try {
-          await writeArtwork(db, makeSnapshot());
+          await writeArtwork(db, await makeSnapshot());
           failures = 0;
         } catch (error) {
           // Another completed stroke may already have replaced this snapshot.

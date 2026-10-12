@@ -59,7 +59,7 @@ function updateHistory(changed = false) {
   undo.disabled = !engine?.canUndo;
   redo.disabled = !engine?.canRedo;
   // Only completed strokes, undo/redo and clear change the saved artwork.
-  if (changed && engine && autosave) autosave.save(() => engine.snapshot());
+  if (changed && engine && autosave) autosave.save(() => engine.snapshotForAutosave());
 }
 function useTool(name) {
   if (!["brush", "eraser", "picker"].includes(name)) return;
@@ -203,13 +203,14 @@ async function start() {
     status.textContent = "Loading local Hokusai engine";
     const readyEngine = await PaintingEngine.create(canvas, () => updateHistory(true));
     let recovered = false;
+    let loadedFromCache = false;
     try {
       const database = await openArtworkDatabase();
       let damagedBackup = false;
       try {
         const saved = await loadArtwork(database, canvas.width, canvas.height);
         if (saved) {
-          readyEngine.restoreArtwork(saved);
+          loadedFromCache = await readyEngine.restoreSavedArtwork(saved);
           recovered = saved.history.length > 0 || saved.redoStack.length > 0;
         }
       } catch (readError) {
@@ -225,6 +226,11 @@ async function start() {
         if (value === "Save failed") message("Autosave failed — export a PNG");
       });
       autosaveStatus.textContent = damagedBackup ? "Backup preserved" : recovered ? "Restored locally" : "Local save ready";
+      // Old documents remain compatible. Once fully replayed, refresh their
+      // optional local cache so later page loads do not replay every stroke.
+      if (recovered && !loadedFromCache && readyEngine.checkpoints.length) {
+        autosave.save(() => readyEngine.snapshotForAutosave());
+      }
     } catch (error) {
       console.warn("PFx Paint autosave unavailable:", error);
       autosaveStatus.textContent = "Autosave unavailable";

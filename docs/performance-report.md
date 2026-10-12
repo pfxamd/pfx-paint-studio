@@ -172,3 +172,52 @@ a guarantee of performance on user devices. This is one CI run per browser.
 workflow using `workflow_dispatch`, then inspect the
 `test-artifacts/heavy-endurance.json` report. The 2000-stroke suite is
 manual-only after this initial verified run, so it does not delay every PR.
+
+## Verified fast local restore for heavy artwork (2026-10-12)
+
+An optional lossless local cache now persists recent internal **fix15 tile
+checkpoints**, compressed with the browser's built-in deflate stream, in the
+same IndexedDB artwork record as the original stroke history. The existing
+stroke schema remains intact (schema version 1). On reload the implementation
+SHA-256 checks the stroke prefix and uncompressed tile payload for every
+candidate, validates tile dimensions/coordinates/channel bounds, restores
+recent checkpoints and replays only the remaining strokes. Corrupted,
+unsupported, missing or obsolete caches fall back to full original-stroke
+replay. Previously saved artwork is still readable; after its first successful
+legacy load the app schedules a new optional cache for later reloads. The
+same compressed payload is reused between autosaves while its checkpoint
+identity is unchanged, avoiding repeated compression on every save.
+
+**Cross-browser verification:** [successful PR run 38271488932](https://github.com/pfxamd/pfx-paint-studio/actions/runs/38271488932).
+The benchmark executes 2,000 heavy strokes and retains 44,093 original
+points per browser. Stored artwork, undo/redo, and both full and cached
+reconstruction have the same exact pixel digest. Corruption and legacy
+fallback are also exercised by the ordinary Chromium browser regression.
+
+| 2000-stroke reload benchmark | Earlier full replay | Cached reload (verified PR) |
+|---|---:|---:|
+| Chromium / headless Linux | 5,173 ms | 330 ms |
+| Firefox / headless Linux | 53,923 ms | 793 ms |
+
+The separate [earlier successful cache-validation run 38269627967](https://github.com/pfxamd/pfx-paint-studio/actions/runs/38269627967)
+measured cached reconstruction at **304 ms Chromium / 544 ms Firefox**.
+The variation across CI runs is why these values are observations, not
+service-level latency promises. Firefox's former ~54-second reload is now
+under 1 second in both measured optimized runs, an improvement of over 98%.
+
+**Trade-offs:** the three compressed checkpoints in the 2,000-stroke test
+occupied ~12.2 MB in the Chromium IndexedDB record and ~12.2 MB in the Firefox
+record (decimal MB). The first cached autosave at that milestone took about
+1.2 s in Chromium and 1.8 s in Firefox in this workload, versus ~0.3 and
+~0.4 s for the previous no-cache save. Subsequent unchanged checkpoints
+reuse their compressed representation, but IndexedDB still has to write it.
+The cache is optional and bounded by a 12 MiB payload budget; the newest
+checkpoint is preferred when the whole recent set would exceed the budget.
+Loading a legacy 2,000-stroke painting **for the first time** still requires
+a full replay before a cache can be created.
+
+Full reconstruction *without* a cache and checkpoint-boundary undo spikes
+remain slower in Firefox; this improvement addresses **cached reloads**, not
+the underlying heavy-brush computation. The benchmark uses synthetic
+pressured pen and mouse samples in genuine headless browsers; it does not
+measure physical stylus hardware, screen presentation or total process RAM.

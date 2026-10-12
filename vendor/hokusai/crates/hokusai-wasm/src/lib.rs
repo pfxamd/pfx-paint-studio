@@ -93,6 +93,15 @@ pub struct HokusaiCheckpoint {
     state: BrushState,
 }
 
+#[wasm_bindgen]
+impl HokusaiCheckpoint {
+    /// Export an exact 16-bit tiled surface, not an 8-bit preview image.
+    #[wasm_bindgen(js_name = exportTiles)]
+    pub fn export_tiles(&self, width: u32, height: u32) -> Vec<u8> {
+        self.surface.export_tiles(width, height)
+    }
+}
+
 // Reuse the exact sRGB result for repeated floating-point channel values.
 // Keys are full f32 bit patterns: cache hits cannot change pixel rounding.
 const SRGB_CACHE_SIZE: usize = 2048;
@@ -257,6 +266,19 @@ impl HokusaiCanvas {
         self.surface = saved.surface.clone();
         self.state = saved.state.clone();
         self.needs_full_flush = true;
+    }
+
+    /// Install a validated local tile checkpoint, returning false when
+    /// corrupt/obsolete. The existing history remains the recovery source.
+    #[wasm_bindgen(js_name = restoreTiles)]
+    pub fn restore_tiles(&mut self, data: &[u8]) -> bool {
+        let Some(surface) = MemSurface::import_tiles(data, self.width, self.height) else {
+            return false;
+        };
+        self.surface = surface;
+        self.state.reset();
+        self.needs_full_flush = true;
+        true
     }
 
     /// Flush `slow_tracking` lag so the stroke's trailing pixels are painted.
