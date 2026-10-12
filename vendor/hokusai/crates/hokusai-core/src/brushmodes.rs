@@ -6,9 +6,9 @@
 //! - Dab position `(x, y)` is in world-pixel space (sub-pixel f32).
 //! - Dab `color` is straight-alpha linear sRGB; we premultiply at blend time.
 //!
-//! Implements libmypaint's `BlendMode_Normal_and_Eraser` plus the
-//! `Colorize` / `Posterize` / `LockAlpha` overlays. The spectral `paint`
-//! pigment-mixing mode is still deferred.
+//! Implements libmypaint's `BlendMode_Normal_and_Eraser`,
+//! `Colorize` / `Posterize` / `LockAlpha` overlays and the spectral `paint`
+//! pigment-mixing paths.
 
 #![allow(clippy::needless_range_loop, clippy::too_many_arguments)]
 
@@ -470,6 +470,10 @@ fn blend_lock_alpha_paint(
     );
     for &(lx, ly, mask) in entries {
         let mut opa_a = mask * opacity / ONE;
+        // Zero effective opacity is an exact no-op, not a pigment re-mix.
+        if opa_a == 0 {
+            continue;
+        }
         let opa_b = ONE - opa_a;
         let p = &mut tile[ly][lx];
         opa_a *= p[3] as u32;
@@ -636,6 +640,12 @@ fn blend_normal_paint(
     );
     for &(lx, ly, mask) in entries {
         let opa_a = mask * opacity / ONE;
+        // At soft textured edges the nonzero mask can quantize to zero
+        // effective opacity. Do not re-synthesize an unchanged destination
+        // via the approximate RGB/spectral/RGB conversion.
+        if opa_a == 0 {
+            continue;
+        }
         let opa_b = ONE - opa_a;
         let p = &mut tile[ly][lx];
         let (r0, g0, b0, a0) = (p[0] as u32, p[1] as u32, p[2] as u32, p[3] as u32);
@@ -689,6 +699,12 @@ fn blend_normal_and_eraser_paint(
     );
     for &(lx, ly, mask) in entries {
         let opa_a = mask * opacity / ONE;
+        // At soft textured edges the nonzero mask can quantize to zero
+        // effective opacity. Do not re-synthesize an unchanged destination
+        // via the approximate RGB/spectral/RGB conversion.
+        if opa_a == 0 {
+            continue;
+        }
         let opa_b = ONE - opa_a;
         let opa_a2 = opa_a * color_a / ONE;
         let p = &mut tile[ly][lx];
@@ -1133,6 +1149,54 @@ mod tests {
         assert!(c.g.abs() < 1e-3);
         assert!(c.b.abs() < 1e-3);
         assert!((c.a - 1.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn pigment_blending_keeps_existing_pixels_when_coverage_quantizes_to_zero() {
+        // At the edge of a textured dab, the coverage mask can be nonzero
+        // while the effective fix15 opacity has already rounded down to
+        // zero. An approximate RGB -> spectral -> RGB roundtrip must never
+        // repaint such a pixel. Check all three pigment mixing branches.
+        let original = [21000u16, 6500, 9000, 26000];
+        let fringe = [(0usize, 0usize, 1u32)];
+        let mut tile = crate::tile::empty_tile();
+
+        tile[0][0] = original;
+        blend_normal_paint(tile.as_mut(), &fringe, 2000, 28000, 1000, 150);
+        assert_eq!(tile[0][0], original, "normal pigment fringe recolored a pixel");
+
+        tile[0][0] = original;
+        blend_lock_alpha_paint(tile.as_mut(), &fringe, 2000, 28000, 1000, 150);
+        assert_eq!(tile[0][0], original, "lock-alpha pigment fringe recolored a pixel");
+
+        tile[0][0] = original;
+        blend_normal_and_eraser_paint(
+            tile.as_mut(), &fringe, 2000, 28000, 1000, FIX15_ONE, 150,
+        );
+        assert_eq!(tile[0][0], original, "smudging pigment fringe recolored a pixel");
+    }
+
+    #[test]
+    fn pigment_blending_retains_its_color_response_at_nonzero_coverage() {
+        // Safeguard the artistic paint path: a full-coverage pigment dab
+        // must still mix color on an opaque canvas.
+        let original = [21000u16, 6500, 9000, 26000];
+        let full = [(0usize, 0usize, FIX15_ONE)];
+        let mut tile = crate::tile::empty_tile();
+
+        tile[0][0] = original;
+        blend_normal_paint(tile.as_mut(), &full, 2000, 28000, 1000, 15000);
+        assert_ne!(tile[0][0], original);
+
+        tile[0][0] = original;
+        blend_lock_alpha_paint(tile.as_mut(), &full, 2000, 28000, 1000, 15000);
+        assert_ne!(tile[0][0], original);
+
+        tile[0][0] = original;
+        blend_normal_and_eraser_paint(
+            tile.as_mut(), &full, 2000, 28000, 1000, FIX15_ONE, 15000,
+        );
+        assert_ne!(tile[0][0], original);
     }
 
     #[test]

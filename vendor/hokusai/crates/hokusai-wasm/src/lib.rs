@@ -296,11 +296,13 @@ impl HokusaiCanvas {
         self.state.reset();
     }
 
-    /// Drop all painted tiles and reset stroke state. Cheaper and safer than
-    /// reconstructing the canvas object on the JS side.
+    /// Drop all painted tiles and restore the initial RNG stream.
+    /// Unlike reset_stroke(), a full clear is used before deterministic
+    /// replay from an empty canvas. Preserving the advanced RNG here
+    /// changes dry/textured brush dabs on undo and redo.
     pub fn clear(&mut self) {
         self.surface = MemSurface::new();
-        self.state.reset();
+        self.state = BrushState::default();
         self.needs_full_flush = true;
     }
 
@@ -473,4 +475,28 @@ pub fn start() {
     std::panic::set_hook(Box::new(|info| {
         error(&format!("hokusai panic: {info}"));
     }));
+}
+
+#[cfg(test)]
+mod canvas_replay_tests {
+    use super::*;
+
+    #[test]
+    fn full_clear_restarts_random_texture_but_stroke_reset_continues_it() {
+        let mut canvas = HokusaiCanvas::new(128, 128);
+        let mut fresh = BrushState::default();
+        let first = fresh.rng.next_unit();
+        let second = fresh.rng.next_unit();
+        assert_eq!(canvas.state.rng.next_unit(), first);
+
+        // A new stroke belongs to the same continuous random stream.
+        canvas.reset_stroke();
+        assert_eq!(canvas.state.rng.next_unit(), second);
+
+        // A replay from a blank canvas must restart from the seed, not
+        // inherit randomness consumed by the previous drawing.
+        canvas.clear();
+        assert_eq!(canvas.state.rng.next_unit(), first);
+        assert_eq!(canvas.surface.tile_count(), 0);
+    }
 }

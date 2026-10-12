@@ -3,7 +3,7 @@
 //! Backends only need to implement tile lending; `draw_dab` and `get_color`
 //! ship as default implementations so every backend gets identical pixels.
 //! The defaults cover libmypaint's Normal+Eraser, Colorize, Posterize, and
-//! LockAlpha blend modes; the spectral `paint` mode is still deferred.
+//! LockAlpha blend modes, including the spectral `paint` paths.
 
 use crate::color::RgbaF32;
 use crate::tile::TilePixels;
@@ -41,7 +41,7 @@ pub trait TiledSurface {
     ///
     /// Default impl applies libmypaint's Normal+Eraser blend in linear sRGB
     /// fix15, plus colorize / posterize / lock_alpha when those dab fields
-    /// are non-zero. The spectral `paint` mode is still deferred.
+    /// are non-zero; spectral pigment mixing follows `paint` where selected.
     fn draw_dab(&mut self, dab: &Dab) -> bool {
         crate::brushmodes::draw_dab_default(self, dab)
     }
