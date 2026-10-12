@@ -147,6 +147,37 @@ mod tests {
     use hokusai_core::tile::TILE_SIZE;
 
     #[test]
+    fn tile_cache_roundtrips_exact_fix15_pixels_and_rejects_corruption() {
+        let mut surface = MemSurface::new();
+        for (tx, ty, value) in [(0, 0, 32768), (4, 3, 10032), (-1, 0, 4096)] {
+            let tile = surface.tile_request_start(tx, ty);
+            tile[0][0] = [value, 42, 128, value];
+            tile[63][63] = [256, value, 0, value];
+        }
+        let encoded = surface.export_tiles(320, 240);
+        let restored = MemSurface::import_tiles(&encoded, 320, 240).unwrap();
+        assert_eq!(restored.export_tiles(320, 240), encoded);
+        assert_eq!(restored.tile_count(), 3);
+        assert!(MemSurface::import_tiles(&encoded, 640, 240).is_none());
+
+        let mut bad = encoded.clone();
+        bad[0] = 0;
+        assert!(MemSurface::import_tiles(&bad, 320, 240).is_none());
+        let mut truncated = encoded.clone();
+        truncated.pop();
+        assert!(MemSurface::import_tiles(&truncated, 320, 240).is_none());
+        let mut bad_channel = encoded.clone();
+        bad_channel[28] = 255;
+        bad_channel[29] = 255;
+        assert!(MemSurface::import_tiles(&bad_channel, 320, 240).is_none());
+
+        let mut duplicate = encoded.clone();
+        let second = 20 + 8 + 64 * 64 * 8;
+        duplicate[second..second + 8].copy_from_slice(&duplicate[20..28]);
+        assert!(MemSurface::import_tiles(&duplicate, 320, 240).is_none());
+    }
+
+    #[test]
     fn lends_and_records_dirty() {
         let mut s = MemSurface::new();
         s.begin_atomic();
