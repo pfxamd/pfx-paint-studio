@@ -1,12 +1,20 @@
 const CACHE_NAME = "pfx-paint-cache-v1";
 const LOCAL_ASSETS = [
   "./", "./index.html",
-  "./src/style.css", "./src/app.js", "./src/engine.js", "./src/autosave.js",
+  "./src/style.css", "./src/app.js", "./src/engine.js", "./src/viewport.js", "./src/autosave.js",
   "./public/brand/Red-pfx.svg",
   "./public/brushes/charcoal.myb",
   "./public/brushes/calligraphy.myb",
   "./public/brushes/brush.myb",
   "./public/brushes/marker_fat.myb",
+  "./public/brushes/pencil.myb",
+  "./public/brushes/dry_brush.myb",
+  "./public/brushes/textured_ink.myb",
+  "./public/brushes/watercolor_glazing.myb",
+  "./public/brushes/watercolor_expressive.myb",
+  "./public/brushes/oil.myb",
+  "./public/brushes/acrylic.myb",
+  "./public/brushes/pastel.myb",
   "./pkg/hokusai_wasm.js", "./pkg/hokusai_wasm_bg.wasm"
 ];
 

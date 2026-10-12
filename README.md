@@ -2,17 +2,23 @@
 
 Local-first digital painting workspace — **Alpha 0.1.0**.
 
-Features: Hokusai-powered real brushes, pen pressure and tilt, colours and palette, size, eraser, colour picker, undo/redo, clear, and PNG export. Designed for one screen without page scrolling.
+Features: 12 bundled Hokusai-powered artist brushes with real rendered previews, smooth cursor-centered zoom (100%–800%), middle-mouse or Space+drag panning and one-click Fit, pen pressure and tilt, colours and palette, size, eraser, colour picker, undo/redo, clear, and PNG export. Designed for one screen without page scrolling.
 
 ## Runtime architecture
 
 - Original UI, pointer input, stroke history and PNG export: `index.html`, `src/app.js`, `src/engine.js`, `src/style.css`.
 - Hokusai core, `.myb` parser, in-memory tiled surface, and WASM bindings: source copied into `vendor/hokusai/`.
-- Four preset `.myb` brushes are stored in `public/brushes/`. Original PFx logo is `public/brand/Red-pfx.svg`.
+- Twelve `.myb` artist brush settings are stored in `public/brushes/` (4 from Hokusai examples and 8 CC0 presets from the official MyPaint brush collection; see `public/brushes/ATTRIBUTION.md`). Original PFx logo is `public/brand/Red-pfx.svg`.
 - All runtime assets — styles, JS, compiled WASM, brushes and logo — are served from this repository's GitHub Pages site. No CDN, externally hosted font, remote API or image uploads.
 - Completed strokes, undo/redo and clearing are saved automatically in this browser using IndexedDB, then restored when the studio opens again. The artwork and undo history stay on the device: there is no server upload. Each browser/profile has independent local artwork. Saving may be unavailable in restricted/private browser settings; check the local-save indicator and use PNG export as a separate copy. A sudden browser crash while a stroke is still in progress may lose that unfinished stroke.
 - Undo/redo reconstructs the canvas by replaying recorded strokes. This is correct but may require optimization for very large artwork histories.
 - A service worker caches every runtime asset after first successful visit, permitting offline revisits where supported.
+
+## Brush and runtime assets
+
+Additional eight raw MyPaint brush settings are copied and kept locally, pinned to upstream commit `08da4a48a4b63f2e0f3303942d7c21da8479ea9f`. Their public-domain / CC0 provenance and filenames are documented in `public/brushes/ATTRIBUTION.md`. There are no runtime calls to the upstream source.
+
+The viewer changes only CSS transforms, preserving full 1200×800 pixel artboard coordinates, autosaved stroke positions and exported PNG pixel dimensions.
 
 ## Engine attribution
 
@@ -47,6 +53,7 @@ Expected site: https://pfxamd.github.io/pfx-paint-studio/
 ## Shortcuts
 
 - B: brush; E: eraser; I: pick colour.
+- Mouse wheel or + / −: zoom around pointer or view centre; Space+drag or middle-mouse+drag: pan; 0 or Fit: reset view.
 - Ctrl/Cmd+Z: undo; Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y: redo.
 
 All artwork is rendered by the real compiled Hokusai brush engine, not a simulated HTML drawing brush.
