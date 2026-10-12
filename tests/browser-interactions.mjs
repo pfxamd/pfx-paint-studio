@@ -343,6 +343,8 @@ try {
   await page.send("Page.reload",{ignoreCache:true});
   await until(async()=>(await page.evaluate("document.querySelector('#status')?.textContent || ''")).includes("Ready to paint"),"Empty artwork reopened",30000);
   assert((await page.evaluate(STATS)).count===0,"Cleared artwork remains empty after reload");
+  await page.send("Emulation.clearDeviceMetricsOverride");
+  await sleep(150);
   // Clearing after Undo must discard redo-only history too.
   await draw(page,.2,.24,.48,.3);
   await until(async()=>{const v=await savedArtwork(page);return v?.strokes===1}, "Fresh stroke stored");
