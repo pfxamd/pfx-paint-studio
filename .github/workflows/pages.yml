@@ -144,7 +144,8 @@ jobs:
           node tests/browser-performance.mjs "$CHROME"
           PFX_CPU_SLOWDOWN=3 PFX_BENCH_STROKES=180 node tests/browser-performance.mjs "$CHROME"
 
-      - name: Verify 500 and 1000 stroke endurance
+      - name: Verify 500 and 1000 stroke endurance (manual run only)
+        if: github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           set -euo pipefail

@@ -22,7 +22,7 @@ Every push now runs the actual Playwright-managed Firefox browser on an Ubuntu G
 
 ## Performance verification
 
-Measured long-session results and limitations are documented in [`docs/performance-report.md`](docs/performance-report.md). The existing browser interaction checks always run on deployment; the long benchmark runs on manual workflow dispatch to keep normal publishing responsive.
+Measured long-session results and limitations are documented in [`docs/performance-report.md`](docs/performance-report.md). The existing browser interaction checks always run on deployment; the 300-stroke and 1000-stroke endurance benchmarks run on manual workflow dispatch to keep normal publishing responsive.
 
 ## Mouse drawing responsiveness
 

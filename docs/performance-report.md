@@ -25,3 +25,20 @@ The benchmark runs the real self-hosted Hokusai WebAssembly engine in headless C
 Use the GitHub Actions workflow **Build and deploy PFx Paint Studio** → **Run workflow**. Manual dispatch includes both benchmarks; ordinary pushes retain the required painting, undo/redo, offline-resource, local-autosave, mobile and PNG regression checks but skip the heavier benchmarks.
 
 The browser script is `tests/browser-performance.mjs` and produces two downloadable build artifacts: `performance.json` and `performance-cpu-3x.json`. It uses Node.js and Chromium's DevTools protocol; there is no runtime dependency in the paint app.
+
+## Extended session: 1000 strokes
+
+Source: [successful endurance run 38242759328](https://github.com/pfxamd/pfx-paint-studio/actions/runs/38242759328) — 2026-10-12. This is one automated headless Chromium/Linux run at 1200 × 800 pixels. It executes 1000 genuine Hokusai strokes across five rotating brush presets and checks milestones in the same browser session. Exact canvas SHA-256 matches after eight undo operations, eight redo operations, and rebuilding from saved strokes at both 500 and 1000 strokes.
+
+| Milestone | Points retained | Stroke median (ms) | Stroke p95 (ms) | WASM buffer (MiB) | JS heap after forced GC (MiB) | Cached checkpoints |
+|---|---:|---:|---:|---:|---:|---:|
+| 250 | 5632 | 0.4 | 1.5 | 37.4 | 1.6 | 3 |
+| 500 | 11277 | 0.3 | 1.0 | 39.9 | 2.3 | 3 |
+| 750 | 16897 | 0.2 | 0.9 | 69.1 | 3.0 | 3 |
+| 1000 | 22534 | 0.3 | 0.9 | 69.1 | 3.7 | 3 |
+
+At 500 strokes the restoration took **264 ms**, and IndexedDB autosave finished in approximately **200 ms**. At 1000 strokes restoration took **481 ms**, and autosave finished in approximately **218 ms**. Both completed with all saved stroke points intact and with **zero uncaught browser exceptions**.
+
+**Interpretation:** no growth in the WASM buffer high-water mark or DOM node count (407 at every sample) was observed between strokes 750 and 1000. The JavaScript heap grew with the intentionally growing 1000-stroke history, which is expected. WASM buffer size is reserved memory, *not* live Rust allocation size. These observations do **not** establish that long-term memory leaks are absent, nor do they measure actual mouse-to-pixel latency or Firefox performance on the user's workstation.
+
+The long-session test is kept in `tests/browser-endurance.mjs`, and emits `test-artifacts/endurance-report.json`. Run it explicitly using `workflow_dispatch` alongside the standard browser benchmark; normal pushes continue to run the shorter Chromium/Firefox functionality tests without delaying deployments.
