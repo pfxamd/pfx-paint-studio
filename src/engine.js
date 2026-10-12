@@ -361,6 +361,104 @@ export class PaintingEngine {
     this.renderNow();
   }
 
+  // Optional acceleration only: the unchanged stroke history remains the
+  // authoritative artwork and always supports full deterministic replay.
+  async snapshotForAutosave() {
+    const saved = this.snapshot();
+    if (typeof CompressionStream !== "function" ||
+        typeof crypto?.subtle?.digest !== "function" || !this.checkpoints.length) {
+      return saved;
+    }
+    // Capture all exact tile bytes before the first await, so subsequent
+    // drawing cannot make the cache disagree with this stroke-history clone.
+    const candidates = this.checkpoints.map(({ count, snapshot }) => ({
+      count, tiles: snapshot.exportTiles(this.canvas.width, this.canvas.height)
+    }));
+    const fingerprint = async count => {
+      const bytes = new TextEncoder().encode(JSON.stringify(saved.history.slice(0, count)));
+      const digest = await crypto.subtle.digest("SHA-256", bytes);
+      return Array.from(new Uint8Array(digest), v => v.toString(16).padStart(2, "0")).join("");
+    };
+    try {
+      const checkpoints = [];
+      let compressedSize = 0;
+      for (const item of candidates) {
+        const stream = new Blob([item.tiles]).stream()
+          .pipeThrough(new CompressionStream("deflate"));
+        const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+        compressedSize += bytes.byteLength;
+        if (compressedSize > 12 * 1024 * 1024) return saved;
+        checkpoints.push({ count: item.count, digest: await fingerprint(item.count), bytes });
+      }
+      saved.tileCache = { format: "PFXT1-deflate", checkpoints };
+    } catch {
+      // Compression or storage acceleration is never required for autosave.
+    }
+    return saved;
+  }
+
+  async restoreSavedArtwork(saved) {
+    if (this.current) throw new Error("Cannot restore during a stroke");
+    const cached = saved?.tileCache;
+    if (cached?.format !== "PFXT1-deflate" ||
+        !Array.isArray(cached.checkpoints) ||
+        typeof DecompressionStream !== "function") {
+      this.restoreArtwork(saved);
+      return false;
+    }
+    const fingerprint = async count => {
+      const bytes = new TextEncoder().encode(JSON.stringify(saved.history.slice(0, count)));
+      const digest = await crypto.subtle.digest("SHA-256", bytes);
+      return Array.from(new Uint8Array(digest), v => v.toString(16).padStart(2, "0")).join("");
+    };
+    this.releaseCheckpoints();
+    this.history = saved.history;
+    this.redoStack = saved.redoStack;
+    let restoredCount = 0;
+    // Import checkpoints in ascending order, preserving all recent undo
+    // points. Invalid entries are ignored; the source strokes are never lost.
+    for (const entry of cached.checkpoints.slice(0, 3)) {
+      try {
+        if (!Number.isInteger(entry.count) || entry.count <= restoredCount ||
+            entry.count > this.history.length || entry.count % 24 !== 0 ||
+            !(entry.bytes instanceof Uint8Array) ||
+            entry.bytes.byteLength > 12 * 1024 * 1024 ||
+            typeof entry.digest !== "string" ||
+            entry.digest !== await fingerprint(entry.count)) continue;
+        const reader = new Blob([entry.bytes]).stream()
+          .pipeThrough(new DecompressionStream("deflate")).getReader();
+        const chunks = [];
+        let total = 0;
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          total += value.byteLength;
+          if (total > 32 * 1024 * 1024) {
+            await reader.cancel();
+            throw Error("Oversized local checkpoint");
+          }
+          chunks.push(value);
+        }
+        const data = new Uint8Array(total);
+        let offset = 0;
+        for (const chunk of chunks) {
+          data.set(chunk, offset);
+          offset += chunk.byteLength;
+        }
+        if (!this.surface.restoreTiles(data)) continue;
+        this.checkpoints.push({ count: entry.count, snapshot: this.surface.checkpoint() });
+        restoredCount = entry.count;
+      } catch {
+        // Damaged optional checkpoints must not prevent full stroke replay.
+      }
+    }
+    // If none were valid, replay from the beginning. Otherwise, only replay
+    // the tail after the most recent cached checkpoint.
+    this.replay();
+    this.renderNow();
+    return restoredCount > 0;
+  }
+
   previewBrush(id, preview) {
     const width = preview.width, height = preview.height;
     const paper = new HokusaiCanvas(width, height);
