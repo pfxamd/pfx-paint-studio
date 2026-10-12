@@ -8,6 +8,7 @@
   <title>PFx Paint Studio — Alpha</title>
   <link rel="icon" type="image/svg+xml" href="./public/brand/Red-pfx.svg">
   <link rel="stylesheet" href="./src/style.css">
+  <link rel="stylesheet" href="./src/studio-polish.css">
   <script type="module" src="./src/app.js"></script>
 </head>
 <body>
@@ -17,12 +18,12 @@
         <img class="brand-mark" src="./public/brand/Red-pfx.svg" alt="PFx">
         <div class="brand-copy">
           <div class="brand-name-row"><strong>PFx Paint Studio</strong><span class="alpha-badge">ALPHA <span class="alpha-version">0.1.0</span></span></div>
-          <small>Digital painting workspace</small>
+          <small>Artist workspace</small>
         </div>
       </div>
       <div class="top-actions" role="group" aria-label="Document actions">
-        <button class="action-btn" id="undo" title="Undo (Ctrl+Z)" disabled><span class="action-glyph" aria-hidden="true">↶</span>Undo</button>
-        <button class="action-btn" id="redo" title="Redo (Ctrl+Shift+Z)" disabled><span class="action-glyph" aria-hidden="true">↷</span>Redo</button>
+        <button class="action-btn" id="undo" title="Undo (Ctrl+Z)" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9 4 13l5 4"/><path d="M4 13h10a6 6 0 0 1 0 12" transform="translate(0 -4)"/></svg>Undo</button>
+        <button class="action-btn" id="redo" title="Redo (Ctrl+Shift+Z)" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 9 5 4-5 4"/><path d="M20 13H10a6 6 0 0 0 0 12" transform="translate(0 -4)"/></svg>Redo</button>
         <span class="top-divider" aria-hidden="true"></span>
         <button class="action-btn clear-btn" id="clear" title="Clear canvas">Clear</button>
         <button class="save-btn" id="save"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 16v4h16v-4"/></svg> Save PNG</button>
@@ -49,7 +50,7 @@
 
       <main class="workspace">
         <div class="workspace-heading">
-          <div><span class="eyebrow-dot"></span><span id="document-label">Untitled artwork</span></div>
+          <div class="workspace-document"><span class="workspace-kicker">Canvas / Artwork</span><div class="workspace-title"><span class="eyebrow-dot"></span><span id="document-label">Untitled artwork</span></div></div>
           <div class="workspace-view">
             <span class="dimension">1200 × 800 px</span>
             <div class="zoom-toolbar" role="group" aria-label="Canvas zoom">
@@ -75,7 +76,7 @@
       </main>
 
       <aside class="inspector" aria-label="Painting settings">
-        <div class="panel-head"><div><span class="panel-eyebrow">STUDIO / 01</span><h2>Brushes & colour</h2></div><span class="panel-symbol" aria-hidden="true">✳</span></div>
+        <div class="panel-head"><div><span class="panel-eyebrow">PAINT / CONTROLS</span><h2>Brush studio</h2></div></div>
         <section class="settings-section brush-section" aria-label="Brush library">
           <div class="section-label"><h3>Brush library</h3><span>12 brushes</span></div>
           <div class="brush-grid">
@@ -103,7 +104,7 @@
           <input id="size" type="range" min="-2" max="2" step="0.05" value="0" aria-label="Brush size">
           <div class="range-endpoints"><span>Fine</span><span>Broad</span></div>
         </section>
-        <div class="engine-card"><div class="engine-card-top"><span class="engine-pulse"></span><strong>Hokusai Brush Engine</strong></div><p>Native brush physics, running locally in WebAssembly.</p><span class="engine-card-caption">NO CLOUD PROCESSING</span></div>
+        <div class="engine-card"><div class="engine-card-top"><span class="engine-pulse"></span><strong>Brush engine active</strong></div><p>Local rendering · Hokusai / WebAssembly</p></div>
       </aside>
     </div>
   </div>

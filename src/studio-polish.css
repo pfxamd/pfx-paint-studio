@@ -443,7 +443,7 @@
     -webkit-appearance: none;
     height: 5px;
     border-radius: 100px;
-    background: linear-gradient(90deg,#e45160 0%,#e45160 50%,#41464d 50%,#41464d 100%);
+    background: linear-gradient(90deg,#e45160 0%,#e45160 var(--size-fill,50%),#41464d var(--size-fill,50%),#41464d 100%);
     margin: 9px 0 6px;
     accent-color: #e45160;
   }

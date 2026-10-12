@@ -1,7 +1,7 @@
 const CACHE_NAME = "pfx-paint-cache-v1";
 const LOCAL_ASSETS = [
   "./", "./index.html",
-  "./src/style.css", "./src/app.js", "./src/engine.js", "./src/viewport.js", "./src/autosave.js",
+  "./src/style.css", "./src/studio-polish.css", "./src/app.js", "./src/engine.js", "./src/viewport.js", "./src/autosave.js",
   "./public/brand/Red-pfx.svg",
   "./public/brushes/charcoal.myb",
   "./public/brushes/calligraphy.myb",
