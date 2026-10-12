@@ -37,7 +37,7 @@ jobs:
       - name: Install wasm-pack
         uses: jetli/wasm-pack-action@0d096b08b4e5a7de8c28de67e11e945404e9eefa
         with:
-          version: 0.15.0
+          version: v0.15.0
 
       - name: Prepare Node 22 for browser interaction tests
         uses: actions/setup-node@v4
