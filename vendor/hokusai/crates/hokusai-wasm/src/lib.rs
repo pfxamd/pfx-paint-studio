@@ -96,6 +96,37 @@ pub struct HokusaiCheckpoint {
 // Reuse the exact sRGB result for repeated floating-point channel values.
 // Keys are full f32 bit patterns: cache hits cannot change pixel rounding.
 const SRGB_CACHE_SIZE: usize = 2048;
+const SRGB_LUT_STEPS: usize = 4096;
+static SRGB_LUT: std::sync::OnceLock<[u8; SRGB_LUT_STEPS + 1]> =
+    std::sync::OnceLock::new();
+
+#[inline]
+fn exact_srgb_byte(linear: f32) -> u8 {
+    (linear_to_srgb(linear).clamp(0.0, 1.0) * 255.0).round() as u8
+}
+
+// The 8-bit transfer function is monotonic. When two successive LUT
+// boundaries round to the same byte, *every* input between them returns
+// that byte. Boundary-crossing bins retain the original exact conversion.
+#[inline]
+fn srgb_byte_without_powf_when_safe(linear: f32) -> u8 {
+    if !(0.0..=1.0).contains(&linear) {
+        return exact_srgb_byte(linear);
+    }
+    let lut = SRGB_LUT.get_or_init(|| {
+        std::array::from_fn(|i| exact_srgb_byte(i as f32 / SRGB_LUT_STEPS as f32))
+    });
+    let index = (linear * SRGB_LUT_STEPS as f32) as usize;
+    if index >= SRGB_LUT_STEPS {
+        return lut[SRGB_LUT_STEPS];
+    }
+    if lut[index] == lut[index + 1] {
+        lut[index]
+    } else {
+        exact_srgb_byte(linear)
+    }
+}
+
 struct SrgbCache {
     keys: [u32; SRGB_CACHE_SIZE],
     values: [u8; SRGB_CACHE_SIZE],
@@ -116,7 +147,7 @@ impl SrgbCache {
         if self.keys[slot] == key {
             return self.values[slot];
         }
-        let value = (linear_to_srgb(linear).clamp(0.0, 1.0) * 255.0).round() as u8;
+        let value = srgb_byte_without_powf_when_safe(linear);
         self.keys[slot] = key;
         self.values[slot] = value;
         value
@@ -144,6 +175,32 @@ mod srgb_cache_tests {
             let expected = (linear_to_srgb(value).clamp(0.0, 1.0) * 255.0).round() as u8;
             assert_eq!(cache.encode(value), expected);
             assert_eq!(cache.encode(value), expected);
+        }
+    }
+
+    #[test]
+    fn lookup_matches_original_near_every_output_boundary() {
+        let mut cache = SrgbCache::new();
+        // Every 8-bit sRGB transition, including immediately adjacent f32
+        // values where rounding differences could affect the final byte.
+        for byte in 0..255u32 {
+            let srgb = (byte as f64 + 0.5) / 255.0;
+            let linear = if srgb <= 0.04045 {
+                srgb / 12.92
+            } else {
+                ((srgb + 0.055) / 1.055).powf(2.4)
+            } as f32;
+            for shift in -32i64..=32 {
+                let bits = linear.to_bits() as i64 + shift;
+                if bits < 0 || bits > u32::MAX as i64 { continue; }
+                let value = f32::from_bits(bits as u32);
+                assert_eq!(cache.encode(value), exact_srgb_byte(value),
+                    "Mismatch at byte boundary {byte} value {value}");
+            }
+        }
+        for step in 0..=1_000_000 {
+            let value = step as f32 / 1_000_000.0;
+            assert_eq!(cache.encode(value), exact_srgb_byte(value));
         }
     }
 }
