@@ -310,6 +310,22 @@ impl HokusaiCanvas {
         );
     }
 
+    /// Replay a saved stroke through one WASM boundary crossing. Fields are
+    /// x, y, pressure, x tilt, y tilt, and elapsed seconds per point.
+    /// The arithmetic and sample order match individual strokeTo calls.
+    #[wasm_bindgen(js_name = strokePath)]
+    pub fn stroke_path(&mut self, brush: &HokusaiBrush, points: &[f64]) {
+        assert!(points.len() % 6 == 0, "Stroke path has incomplete points");
+        for p in points.chunks_exact(6) {
+            brush.inner.stroke_to(
+                &mut self.state,
+                &mut self.surface,
+                p[0] as f32, p[1] as f32, p[2] as f32,
+                p[3] as f32, p[4] as f32, p[5],
+            );
+        }
+    }
+
     /// Return the canvas as RGBA8 in sRGB, composited over white.
     /// JS copies via `ImageData.data.set(canvas.pixels())`. wasm-bindgen
     /// can't return a borrowed slice across the JS boundary, so the
