@@ -61,9 +61,9 @@ jobs:
       - name: Test Hokusai brush engine
         run: |
           if test -f vendor/hokusai/Cargo.lock; then
-            cargo test --locked --manifest-path vendor/hokusai/Cargo.toml -p hokusai-core -p hokusai-brush -p hokusai-tile-mem
+            cargo test --locked --manifest-path vendor/hokusai/Cargo.toml -p hokusai-core -p hokusai-brush -p hokusai-tile-mem -p hokusai-wasm
           else
-            cargo test --manifest-path vendor/hokusai/Cargo.toml -p hokusai-core -p hokusai-brush -p hokusai-tile-mem
+            cargo test --manifest-path vendor/hokusai/Cargo.toml -p hokusai-core -p hokusai-brush -p hokusai-tile-mem -p hokusai-wasm
           fi
 
       - name: Compile bundled engine to WebAssembly
