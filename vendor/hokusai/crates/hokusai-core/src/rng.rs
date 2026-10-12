@@ -105,6 +105,39 @@ impl BrushRng {
         self.buf_pos = QUALITY;
     }
 
+    /// Portable, versioned PRNG continuation for lossless saved tiles.
+    /// Store IEEE-754 bits, not JSON-decimal approximations: even a one-bit
+    /// drift would change every later textured dab.
+    pub fn export_state(&self) -> Vec<u8> {
+        let mut out = Vec::with_capacity(6 + (KK + QUALITY) * 8);
+        out.extend_from_slice(b"PFRG1");
+        out.push(self.buf_pos as u8);
+        for value in self.ran_u.iter().chain(self.buf.iter()) {
+            out.extend_from_slice(&value.to_bits().to_le_bytes());
+        }
+        out
+    }
+
+    /// Reject corrupt/unknown streams without changing the active canvas.
+    pub fn import_state(bytes: &[u8]) -> Option<Self> {
+        if bytes.len() != 6 + (KK + QUALITY) * 8 ||
+            &bytes[..5] != b"PFRG1" || bytes[5] as usize > QUALITY {
+            return None;
+        }
+        let mut cursor = 6;
+        let mut next = || {
+            let raw: [u8; 8] = bytes[cursor..cursor + 8].try_into().ok()?;
+            cursor += 8;
+            let v = f64::from_bits(u64::from_le_bytes(raw));
+            (v.is_finite() && (0.0..1.0).contains(&v)).then_some(v)
+        };
+        let mut ran_u = [0.0; KK];
+        let mut buf = [0.0; QUALITY];
+        for slot in &mut ran_u { *slot = next()?; }
+        for slot in &mut buf { *slot = next()?; }
+        Some(Self { ran_u, buf, buf_pos: bytes[5] as usize })
+    }
+
     fn cycle(&mut self) -> f64 {
         get_array(&mut self.ran_u, &mut self.buf, QUALITY);
         self.buf_pos = 1;
@@ -186,6 +219,30 @@ mod tests {
 
     /// `rand_gauss` should land in roughly `mean=0, stddev=1` —
     /// the libmypaint formula sums four `u[0,1)` then scales by `sqrt(3)`.
+    #[test]
+    fn exact_persisted_random_stream_continues_and_rejects_corruption() {
+        for count in [0, 1, 9, 10, 11, 31, 100, 1300] {
+            let mut rng = BrushRng::new(1000);
+            for _ in 0..count { rng.next_unit_f64(); }
+            let saved = rng.export_state();
+            assert_eq!(saved.len(), 238);
+            let mut restored = BrushRng::import_state(&saved).expect("valid stream");
+            for _ in 0..90 {
+                assert_eq!(rng.next_unit_f64().to_bits(), restored.next_unit_f64().to_bits());
+            }
+            let mut invalid = saved.clone();
+            invalid[0] = 0;
+            assert!(BrushRng::import_state(&invalid).is_none());
+            invalid = saved.clone();
+            invalid[5] = 255;
+            assert!(BrushRng::import_state(&invalid).is_none());
+            invalid = saved.clone();
+            invalid[6..14].copy_from_slice(&f64::NAN.to_le_bytes());
+            assert!(BrushRng::import_state(&invalid).is_none());
+            assert!(BrushRng::import_state(&saved[..237]).is_none());
+        }
+    }
+
     #[test]
     fn gauss_distribution() {
         let mut r = BrushRng::new(1000);

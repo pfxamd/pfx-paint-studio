@@ -59,6 +59,7 @@ jobs:
           node --check tests/heavy-endurance.mjs
           node --check tests/firefox-interactions.mjs
           node --check tests/browser-stylus.mjs
+          node --check tests/browser-texture-checkpoint.mjs
           node --check tests/browser-brush-quality.mjs
 
       - name: Test Hokusai brush engine
@@ -161,6 +162,7 @@ jobs:
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           node tests/browser-stylus.mjs "$CHROME"
           node tests/browser-brush-quality.mjs "$CHROME"
+          node tests/browser-texture-checkpoint.mjs "$CHROME"
 
       - name: Stress-test 2000 heavy strokes in Chromium and Firefox (manual)
         if: github.event_name == 'workflow_dispatch'

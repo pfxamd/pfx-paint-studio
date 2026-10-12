@@ -100,6 +100,12 @@ impl HokusaiCheckpoint {
     pub fn export_tiles(&self, width: u32, height: u32) -> Vec<u8> {
         self.surface.export_tiles(width, height)
     }
+
+    /// Preserve RNG continuity alongside the exact tile bytes.
+    #[wasm_bindgen(js_name = exportRngState)]
+    pub fn export_rng_state(&self) -> Vec<u8> {
+        self.state.rng.export_state()
+    }
 }
 
 // Reuse the exact sRGB result for repeated floating-point channel values.
@@ -277,6 +283,23 @@ impl HokusaiCanvas {
         };
         self.surface = surface;
         self.state.reset();
+        self.needs_full_flush = true;
+        true
+    }
+
+    /// Restore a complete *versioned* tile checkpoint including the brush
+    /// random stream. Validate both parts before touching the current canvas.
+    #[wasm_bindgen(js_name = restoreTilesWithRng)]
+    pub fn restore_tiles_with_rng(&mut self, tiles: &[u8], rng_bytes: &[u8]) -> bool {
+        let Some(rng) = hokusai_core::rng::BrushRng::import_state(rng_bytes) else {
+            return false;
+        };
+        let Some(surface) = MemSurface::import_tiles(tiles, self.width, self.height) else {
+            return false;
+        };
+        self.surface = surface;
+        self.state = BrushState::default();
+        self.state.rng = rng;
         self.needs_full_flush = true;
         true
     }

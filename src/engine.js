@@ -380,7 +380,8 @@ export class PaintingEngine {
       const cached = this.serializedCheckpoints.get(snapshot);
       return {
         count, snapshot, cached,
-        tiles: cached ? null : snapshot.exportTiles(this.canvas.width, this.canvas.height)
+        tiles: cached ? null : snapshot.exportTiles(this.canvas.width, this.canvas.height),
+        rngState: cached ? null : snapshot.exportRngState()
       };
     });
     const fingerprint = async count => {
@@ -405,7 +406,8 @@ export class PaintingEngine {
           const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
           entry = {
             count: item.count, digest: await fingerprint(item.count),
-            tilesDigest: await checksum(item.tiles), bytes
+            tilesDigest: await checksum(item.tiles),
+            rngState: item.rngState, rngDigest: await checksum(item.rngState), bytes
           };
           this.serializedCheckpoints.set(item.snapshot, entry);
         }
@@ -455,7 +457,12 @@ export class PaintingEngine {
             entry.bytes.byteLength > 12 * 1024 * 1024 ||
             typeof entry.digest !== "string" ||
             typeof entry.tilesDigest !== "string" ||
-            entry.digest !== await fingerprint(entry.count)) continue;
+            entry.digest !== await fingerprint(entry.count) ||
+            // Old checkpoints have only pixels; the brush RNG cannot be
+            // inferred from those tiles. Replay old files deterministically.
+            !(entry.rngState instanceof Uint8Array) ||
+            entry.rngState.byteLength !== 238 ||
+            entry.rngDigest !== await checksum(entry.rngState)) continue;
         const reader = new Blob([entry.bytes]).stream()
           .pipeThrough(new DecompressionStream("deflate")).getReader();
         const chunks = [];
@@ -477,7 +484,7 @@ export class PaintingEngine {
           offset += chunk.byteLength;
         }
         if (entry.tilesDigest !== await checksum(data) ||
-            !this.surface.restoreTiles(data)) continue;
+            !this.surface.restoreTilesWithRng(data, entry.rngState)) continue;
         this.checkpoints.push({ count: entry.count, snapshot: this.surface.checkpoint() });
         restoredCount = entry.count;
       } catch {
