@@ -51,6 +51,10 @@ Cargo and compiler/build tooling still resolve external Rust crates at **build t
 
 Expected site: https://pfxamd.github.io/pfx-paint-studio/
 
+## Desktop drawing pointers
+
+Desktop mouse/pen drawing now uses a precise custom pointer: a high-contrast brush ring and centre point, dashed eraser ring, eyedropper colour marker, and open/closed hands when panning. The ring follows the **nominal MyPaint brush diameter** (base log2 radius, selected size, CSS artwork zoom). Individual MyPaint brush mappings for pressure, speed or tilt can change the actual dab footprint, so the ring is a size reference rather than an exact per-dab silhouette. The overlay uses no external images, does not capture pointer events, never appears in PNG exports, and falls back to native cursors for mobile and touch.
+
 ## Shortcuts
 
 - B: brush; E: eraser; I: pick colour.

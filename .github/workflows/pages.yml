@@ -49,6 +49,7 @@ jobs:
           node --check src/app.js
           node --check src/engine.js
           node --check src/viewport.js
+          node --check src/paint-cursor.js
           node --check src/autosave.js
           node --check sw.js
           node --check tests/browser-interactions.mjs
@@ -77,6 +78,8 @@ jobs:
           test -s _site/public/brushes/charcoal.myb
           test -s _site/public/brushes/pastel.myb
           test -s _site/src/viewport.js
+          test -s _site/src/paint-cursor.css
+          test -s _site/src/paint-cursor.js
           if grep -REn 'https?://' _site/src _site/index.html _site/sw.js; then
             echo "External runtime URL detected"
             exit 1

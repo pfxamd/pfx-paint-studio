@@ -1,5 +1,6 @@
 import { PaintingEngine, BRUSHES } from "./engine.js";
 import { CanvasViewport } from "./viewport.js";
+import { PaintCursor } from "./paint-cursor.js";
 import { openArtworkDatabase, loadArtwork, createAutosave } from "./autosave.js";
 
 const $ = (id) => document.getElementById(id);
@@ -46,6 +47,7 @@ let tool = "brush";
 let activePointer = null;
 let toastTimer = null;
 let paintingBusy = false;
+const pointer = new PaintCursor(stage, canvas, $("paint-pointer"), () => engine, () => tool);
 
 function message(text) {
   toast.textContent = text;
@@ -69,6 +71,7 @@ function useTool(name) {
   }
   frame.classList.toggle("eraser", name === "eraser");
   frame.classList.toggle("picker", name === "picker");
+  pointer.refresh();
   if (engine) engine.configure({ eraser: name === "eraser" });
   status.textContent = name === "picker" ? "Click the artwork to sample a colour" : "Ready to " + (name === "eraser" ? "erase" : "paint");
 }
@@ -79,12 +82,14 @@ function applyColor(hex) {
   for (const button of swatches) button.classList.toggle("selected", button.dataset.color === normalized);
   $("colour-name").textContent = swatches.find((b) => b.dataset.color === normalized)?.title || "Custom colour";
   if (engine) engine.configure({ color: normalized });
+  pointer.refresh();
 }
 function applySize(value) {
   size.value = String(value);
   size.style.setProperty("--size-fill", (Number(value) + 2) / 4 * 100 + "%");
   $("size-label").textContent = Math.round(100 * Math.pow(2, Number(value))) + "%";
   if (engine) engine.configure({ size: Number(value) });
+  pointer.refresh();
 }
 function chooseBrush(id) {
   for (const el of brushButtons) {
@@ -93,6 +98,7 @@ function chooseBrush(id) {
     el.setAttribute("aria-pressed", String(selected));
   }
   if (engine) engine.configure({ brushId: id });
+  pointer.refresh();
   if (tool === "picker") useTool("brush");
 }
 for (const button of toolButtons) button.addEventListener("click", () => useTool(button.dataset.tool));
@@ -207,6 +213,7 @@ async function start() {
       message("Local save unavailable — export PNG");
     }
     engine = readyEngine;
+    pointer.refresh();
     let nextPreview = 0;
     const renderNextPreview = () => {
       if (nextPreview >= brushButtons.length) return;

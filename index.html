@@ -9,6 +9,7 @@
   <link rel="icon" type="image/svg+xml" href="./public/brand/Red-pfx.svg">
   <link rel="stylesheet" href="./src/style.css">
   <link rel="stylesheet" href="./src/studio-polish.css">
+  <link rel="stylesheet" href="./src/paint-cursor.css">
   <script type="module" src="./src/app.js"></script>
 </head>
 <body>
@@ -65,6 +66,21 @@
           <div class="artboard-frame" id="artboard-frame">
             <canvas id="paint-canvas" width="1200" height="800" aria-label="Drawing canvas"></canvas>
             <div class="canvas-loading" id="loading" role="status">Loading painting engine<span class="loading-dots">…</span></div>
+          </div>
+          <div class="paint-pointer" id="paint-pointer" data-mode="brush" aria-hidden="true">
+            <span class="cursor-ring"></span><span class="cursor-center"></span>
+            <span class="cursor-eraser-mark"></span>
+            <svg class="cursor-picker" viewBox="0 0 32 32" aria-hidden="true">
+              <path d="m16 6 10 10M19 4a4 4 0 0 1 6 6L13 22l-8 4 4-8Z"/>
+              <path d="m9 18 5 5"/>
+            </svg>
+            <span class="cursor-colour-chip"></span>
+            <svg class="cursor-hand cursor-hand-open" viewBox="0 0 32 35" aria-hidden="true">
+              <path d="M10 17V8a2.5 2.5 0 0 1 5 0v7-11a2.5 2.5 0 0 1 5 0v10-7a2.5 2.5 0 0 1 5 0v8-4a2.5 2.5 0 0 1 5 0v10c0 7-4 11-10 11h-6c-4 0-6-2-8-6l-4-7a2.8 2.8 0 0 1 5-3l3 4Z"/>
+            </svg>
+            <svg class="cursor-hand cursor-hand-closed" viewBox="0 0 32 35" aria-hidden="true">
+              <path d="M6 20V12a2.5 2.5 0 0 1 5 0v4-6a2.5 2.5 0 0 1 5 0v6-7a2.5 2.5 0 0 1 5 0v7-5a2.5 2.5 0 0 1 5 0v11c0 7-4 10-10 10h-3C8 32 4 27 3 24a2.5 2.5 0 0 1 3-4Z"/>
+            </svg>
           </div>
         </div>
         <div class="workspace-footer">
