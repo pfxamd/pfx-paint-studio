@@ -145,8 +145,8 @@ jobs:
           done
           node tests/firefox-interactions.mjs
 
-      - name: Stress-test 2000 heavy strokes in Chromium and Firefox (manual)
-        if: github.event_name == 'workflow_dispatch'
+      - name: Stress-test 2000 heavy strokes in Chromium and Firefox (validation)
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
         shell: bash
         run: |
           set -euo pipefail
