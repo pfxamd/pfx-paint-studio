@@ -246,11 +246,12 @@ presets, including pressure and tilt simulations:
 | Chromium undo | 108.8 ms | 31.1 ms | **10.5 ms** |
 | Chromium redo | 118.9 ms | 40.9 ms | **17.4 ms** |
 
-At the 2000-stroke milestone the workload happens to align with all three
-checkpoint spacings, so undo/redo were already fast: the selected four-stroke
-version measured **3/6 ms median in Firefox** and **1.1/1.3 ms in Chromium**.
-This comparison underscores why 1000-stroke misaligned checkpoints must be
-tested separately.
+At 2000 strokes the workload aligned with the 4- and 8-stroke
+checkpoints, while the original 24-stroke snapshots still had a comparatively
+cheap remaining replay tail. Undo/redo were fast in all three runs: the selected
+four-stroke version measured **3/6 ms median in Firefox** and **1.1/1.3 ms in
+Chromium**. Testing misaligned and heavy tails at 1000 strokes is therefore
+essential to reveal the worst responsiveness spikes.
 
 | 2000-stroke drawing metric | Every 24 | Every 4 |
 |---|---:|---:|
