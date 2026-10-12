@@ -130,6 +130,7 @@ async function savedArtwork(c) {
           width: value.width,
           height: value.height,
           strokes: value.history.length,
+          firstStrokePoints: value.history[0]?.points.length || 0,
           redo: value.redoStack.length
         } : null);
       };
@@ -221,6 +222,39 @@ try {
   assert(ui.palette.y>ui.brush.y && ui.sizing.y>ui.palette.y &&
     ui.sizing.bottom<=ui.sidebar.bottom+2,"Brush, colour and size controls are ordered and visible");
   assert(ui.noOverflow, "Desktop interface has no page scroll");
+  const dirtyCheck = await page.evaluate(`(async () => {
+    const api = await import("./pkg/hokusai_wasm.js");
+    const wasm = await api.default();
+    const source = await (await fetch("./public/brushes/brush.myb")).text();
+    const brush = new api.HokusaiBrush(source);
+    const surface = new api.HokusaiCanvas(1200, 800);
+    const initial = Array.from(surface.flushDirtyPixels());
+    surface.strokeTo(brush, 500, 400, 1, 0, 0, 0.01);
+    surface.strokeTo(brush, 545, 420, 1, 0, 0, 0.016);
+    surface.finishStroke(brush);
+    const region = Array.from(surface.flushDirtyPixels());
+    const buffer = new Uint8Array(wasm.memory.buffer, surface.pixelsPtr(), surface.pixelsLen());
+    const incremental = new Uint8Array(buffer);
+    surface.flush_pixels();
+    const full = new Uint8Array(wasm.memory.buffer, surface.pixelsPtr(), surface.pixelsLen());
+    let equal = incremental.length === full.length;
+    if (equal) for (let i = 0; i < full.length; i++) {
+      if (incremental[i] !== full[i]) { equal = false; break; }
+    }
+    const empty = Array.from(surface.flushDirtyPixels());
+    surface.clear();
+    const cleared = Array.from(surface.flushDirtyPixels());
+    surface.free();
+    brush.free();
+    return { initial, region, equal, empty, cleared };
+  })()`);
+  assert(dirtyCheck.initial.join(",")==="0,0,1200,800","New surfaces provide initial full frame");
+  assert(dirtyCheck.region.length===4 && dirtyCheck.region[2]*dirtyCheck.region[3] < 1200*800/4,
+    "Brush work updates only a small dirty region");
+  assert(dirtyCheck.equal,"Incremental pixels match exact full-resolution render");
+  assert(dirtyCheck.empty.length===0,"No redundant frames without changes");
+  assert(dirtyCheck.cleared.join(",")==="0,0,1200,800","Clear invalidates entire artboard");
+
   await shot(page,"desktop-before.png");
   const blank=await page.evaluate(STATS);
   assert(blank.count===0,"Blank white canvas");
@@ -229,6 +263,11 @@ try {
   const painted=await page.evaluate(STATS);
   assert(painted.count>50,"Drawing paints actual pixels ("+painted.count+")");
   assert(!(await page.evaluate("document.querySelector('#undo').disabled")),"Undo enabled");
+  const sampled = await until(async () => {
+    const item = await savedArtwork(page);
+    return item?.strokes === 1 && item.firstStrokePoints > 30 ? item : null;
+  }, "Fast pointer trajectory spatially resampled and saved");
+  assert(sampled.firstStrokePoints > 30,"Sparse high-speed mouse events receive intermediate samples");
   await shot(page,"desktop-painted.png");
 
   await click(page,"#undo");
