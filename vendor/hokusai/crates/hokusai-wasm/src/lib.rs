@@ -112,7 +112,7 @@ impl SrgbCache {
     #[inline]
     fn encode(&mut self, linear: f32) -> u8 {
         let key = linear.to_bits();
-        let slot = (key.wrapping_mul(0x9E37_79B1) as usize >> (usize::BITS - 11)) & (SRGB_CACHE_SIZE - 1);
+        let slot = (key.wrapping_mul(0x9E37_79B1) >> 21) as usize;
         if self.keys[slot] == key {
             return self.values[slot];
         }
