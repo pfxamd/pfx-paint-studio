@@ -1136,6 +1136,54 @@ mod tests {
     }
 
     #[test]
+    fn pigment_blending_keeps_existing_pixels_when_coverage_quantizes_to_zero() {
+        // At the edge of a textured dab, the coverage mask can be nonzero
+        // while the effective fix15 opacity has already rounded down to
+        // zero. An approximate RGB -> spectral -> RGB roundtrip must never
+        // repaint such a pixel. Check all three pigment mixing branches.
+        let original = [21000u16, 6500, 9000, 26000];
+        let fringe = [(0usize, 0usize, 1u32)];
+        let mut tile = crate::tile::empty_tile();
+
+        tile[0][0] = original;
+        blend_normal_paint(tile.as_mut(), &fringe, 2000, 28000, 1000, 150);
+        assert_eq!(tile[0][0], original, "normal pigment fringe recolored a pixel");
+
+        tile[0][0] = original;
+        blend_lock_alpha_paint(tile.as_mut(), &fringe, 2000, 28000, 1000, 150);
+        assert_eq!(tile[0][0], original, "lock-alpha pigment fringe recolored a pixel");
+
+        tile[0][0] = original;
+        blend_normal_and_eraser_paint(
+            tile.as_mut(), &fringe, 2000, 28000, 1000, FIX15_ONE, 150,
+        );
+        assert_eq!(tile[0][0], original, "smudging pigment fringe recolored a pixel");
+    }
+
+    #[test]
+    fn pigment_blending_retains_its_color_response_at_nonzero_coverage() {
+        // Safeguard the artistic paint path: a full-coverage pigment dab
+        // must still mix color on an opaque canvas.
+        let original = [21000u16, 6500, 9000, 26000];
+        let full = [(0usize, 0usize, FIX15_ONE)];
+        let mut tile = crate::tile::empty_tile();
+
+        tile[0][0] = original;
+        blend_normal_paint(tile.as_mut(), &full, 2000, 28000, 1000, 15000);
+        assert_ne!(tile[0][0], original);
+
+        tile[0][0] = original;
+        blend_lock_alpha_paint(tile.as_mut(), &full, 2000, 28000, 1000, 15000);
+        assert_ne!(tile[0][0], original);
+
+        tile[0][0] = original;
+        blend_normal_and_eraser_paint(
+            tile.as_mut(), &full, 2000, 28000, 1000, FIX15_ONE, 15000,
+        );
+        assert_ne!(tile[0][0], original);
+    }
+
+    #[test]
     fn rr_increases_with_distance() {
         // Center exactly at pixel center (0.5, 0.5), radius² = 1.
         let near = rr_at(0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 0.0, 1.0);
