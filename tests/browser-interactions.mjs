@@ -258,6 +258,52 @@ try {
   assert(dirtyCheck.empty.length===0,"No redundant frames without changes");
   assert(dirtyCheck.cleared.join(",")==="0,0,1200,800","Clear invalidates entire artboard");
 
+  // Checkpoint equivalence after 26 separate completed strokes.
+  // This exercises the fast Undo/Redo path absent from three-stroke smoke tests.
+  const checkpointTest = await page.evaluate(`(async () => {
+    const { PaintingEngine } = await import("./src/engine.js");
+    const surface = document.createElement("canvas");
+    surface.width = 1200; surface.height = 800;
+    const paint = await PaintingEngine.create(surface, () => {});
+    const rect = { left:0, top:0, width:1200, height:800 };
+    const event = (x,y,t) => ({
+      clientX:x, clientY:y, timeStamp:t, pressure:1, pointerType:"mouse",
+      tiltX:0, tiltY:0
+    });
+    for (let i=0;i<26;i++) {
+      const y=140+i*17,t=1000+i*120;
+      paint.begin(event(130,y,t),rect);
+      paint.add(event(310,y,t+60),rect);
+      paint.end();
+    }
+    const checkpoints=paint.checkpoints.map(c=>c.count);
+    const fingerprint=() => {
+      paint.renderNow();
+      const data=paint.context.getImageData(0,0,1200,800).data;
+      let hash=2166136261;
+      for(let i=0;i<data.length;i+=4){
+        hash=Math.imul(hash ^ data[i],16777619)>>>0;
+        hash=Math.imul(hash ^ data[i+1],16777619)>>>0;
+      }
+      return hash;
+    };
+    const before=fingerprint(),start=performance.now();
+    paint.undo();
+    const undone=fingerprint(),undoMs=performance.now()-start;
+    paint.redo();
+    const redone=fingerprint();
+    paint.clear();
+    const freed=paint.checkpoints.length===0;
+    paint.active.free();
+    paint.surface.free();
+    return {checkpoints,before,undone,redone,undoMs,freed};
+  })()`);
+  assert(checkpointTest.checkpoints.includes(24),"Checkpoint created for long stroke history");
+  assert(checkpointTest.before!==checkpointTest.undone &&
+    checkpointTest.before===checkpointTest.redone,"Checkpointed Undo/Redo preserves exact painted pixels");
+  assert(checkpointTest.freed,"Clearing frees cached surface checkpoints");
+  console.log("PERF checkpointed undo (26 strokes): "+checkpointTest.undoMs.toFixed(2)+" ms");
+
   await shot(page,"desktop-before.png");
   const blank=await page.evaluate(STATS);
   assert(blank.count===0,"Blank white canvas");
