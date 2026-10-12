@@ -114,6 +114,33 @@ async function shot(c,name) {
   const r=await c.send("Page.captureScreenshot",{format:"png"});
   await writeFile(path.join("test-artifacts",name),Buffer.from(r.data,"base64"));
 }
+async function savedArtwork(c) {
+  return c.evaluate(`new Promise((resolve,reject) => {
+    const request = indexedDB.open("pfx-paint-studio", 1);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction("artwork", "readonly");
+      const read = tx.objectStore("artwork").get("current");
+      read.onsuccess = () => {
+        const value = read.result;
+        db.close();
+        resolve(value ? {
+          schemaVersion: value.schemaVersion,
+          width: value.width,
+          height: value.height,
+          strokes: value.history.length,
+          redo: value.redoStack.length
+        } : null);
+      };
+      read.onerror = () => reject(read.error);
+    };
+  })`);
+}
+async function reloadReady(c) {
+  await c.send("Page.reload",{ignoreCache:true});
+  await until(async() => (await c.evaluate("document.querySelector('#status')?.textContent || ''")).includes("restored"), "Local artwork recovered", 30000);
+}
 function assert(x,message){if(!x)throw Error(message);console.log("PASS",message)}
 let page,browser;
 try {
@@ -177,6 +204,26 @@ try {
   const external=await page.evaluate("performance.getEntriesByType('resource').filter(x=>new URL(x.name).origin!==location.origin).map(x=>x.name)");
   assert(external.length===0,"Zero external runtime requests");
 
+  const saved = await until(async() => {
+    const item = await savedArtwork(page);
+    return item?.strokes === 3 && item.redo === 0 ? item : null;
+  }, "Completed strokes saved in IndexedDB");
+  assert(saved.schemaVersion===1 && saved.width===1200 && saved.height===800, "Local save schema and artwork dimensions");
+  const beforeReload = await page.evaluate(STATS);
+  await reloadReady(page);
+  const recovered = await page.evaluate(STATS);
+  assert(recovered.count > 50 &&
+    Math.abs(recovered.count-beforeReload.count) < Math.max(50, beforeReload.count*0.25),
+    "Real painted pixels recovered after reload");
+  assert(!(await page.evaluate("document.querySelector('#undo').disabled")), "Undo available after recovery");
+
+  await click(page,"#undo");
+  await until(async()=>{const item=await savedArtwork(page);return item?.strokes===2&&item.redo===1}, "Undo autosaved");
+  await reloadReady(page);
+  assert(!(await page.evaluate("document.querySelector('#redo').disabled")), "Redo history recovered after reload");
+  await click(page,"#redo");
+  await until(async()=>{const item=await savedArtwork(page);return item?.strokes===3&&item.redo===0}, "Redo autosaved");
+
   await page.send("Emulation.setDeviceMetricsOverride",{width:390,height:844,deviceScaleFactor:1,mobile:true});
   await sleep(350);
   const mobile=await page.evaluate("({w:document.documentElement.scrollWidth,h:document.documentElement.scrollHeight,iw:innerWidth,ih:innerHeight,b:(()=>{const b=document.querySelector('#paint-canvas').getBoundingClientRect();return b.width>100&&b.height>60})()})");
@@ -184,6 +231,13 @@ try {
   assert(mobile.h<=mobile.ih+2,"844px viewport without vertical overflow");
   assert(mobile.b,"Drawing surface visible on mobile");
   await shot(page,"mobile.png");
+
+  await page.evaluate("window.confirm = () => true");
+  await click(page,"#clear");
+  await until(async()=>{const item=await savedArtwork(page);return item?.strokes===0&&item.redo===0}, "Clear operation autosaved");
+  await page.send("Page.reload",{ignoreCache:true});
+  await until(async()=>(await page.evaluate("document.querySelector('#status')?.textContent || ''")).includes("Ready to paint"),"Empty artwork reopened",30000);
+  assert((await page.evaluate(STATS)).count===0,"Cleared artwork remains empty after reload");
   assert(page.errors.length===0,"No uncaught JS exceptions: "+page.errors.join("; "));
   console.log("ALL BROWSER INTERACTION TESTS PASSED");
 } catch(e) {
