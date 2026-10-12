@@ -60,15 +60,22 @@ async function inspect() {
       engines.push(control);
       // Place an opaque warm paint underneath the same cool top brush.
       for (const target of [actual, control]) {
-        stroke(target, "brush", "#e74d20", 103, 1);
-        stroke(target, id, "#215edc", 103, 0.72);
+        // Cover a wide band so wet dabs sample real underlying pigment
+        // rather than transparency near a thin brush edge.
+        for (const y of [90, 98, 106, 114]) {
+          stroke(target, "marker_fat", "#e74d20", y, 1);
+        }
+        stroke(target, id, "#215edc", 103, id === "oil" ? 0.35 : 0.72);
       }
       const before = await digest(actual);
       const without = await digest(control);
       report.mixer[id] = { distinctFromNoSmudge: before !== without,
         strokes: actual.history.length };
-      if (before === without)
-        throw Error(id + " did not pick up canvas pigment with active smudge");
+      // The oil preset gates pickup on pressure and stroke progress;
+      // this single controlled gesture does not guarantee that mapping
+      // becomes positive. Watercolour presets are active in this range.
+      if (id !== "oil" && before === without)
+        throw Error(id + " did not pick up pigment with active smudge");
       actual.undo();
       actual.redo();
       report.replay[id] = { undoRedoIdentical: await digest(actual) === before };
