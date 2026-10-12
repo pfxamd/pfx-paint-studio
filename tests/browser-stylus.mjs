@@ -115,8 +115,17 @@ async function exercise() {
     const clone = new PaintingEngine(other, painting.wasm, painting.brushSources, () => {});
     clone.restoreArtwork(saved);
     const replayExact = await hash(other) === initial;
+    // This preset maps tilt to dab aspect, angle and radius. Confirm that
+    // retaining tilt changes the actual artwork, not just stroke metadata.
+    const noTiltHistory = structuredClone(saved);
+    for (const stroke of noTiltHistory.history) {
+      for (const p of stroke.points) { p.xtilt = 0; p.ytilt = 0; }
+    }
+    clone.restoreArtwork(noTiltHistory);
+    const tiltAffectsPixels = await hash(other) !== initial;
 
     const result = { coalescedTilt, finalTilt, finalCall: !!finalCall,
+      tiltAffectsPixels,
       identicalExtra, dwellPreserved, retainedPressure, zeroLift,
       undoRedoExact, replayExact, points: points.length,
       forwardedPenSamples: seen.length };
@@ -145,17 +154,15 @@ for (const [name, type] of [["Chromium", chromium], ["Firefox", firefox]]) {
       { timeout: 45000 }
     );
     const result = await page.evaluate(exercise);
-    const keys = ["coalescedTilt", "finalTilt", "finalCall", "dwellPreserved",
+    const keys = ["coalescedTilt", "finalTilt", "finalCall", "tiltAffectsPixels", "dwellPreserved",
       "retainedPressure", "zeroLift", "undoRedoExact", "replayExact"];
     const failed = keys.filter(key => !result[key]);
     if (failed.length || result.points < 15)
       throw Error(name + " incomplete pen dynamics: " +
         JSON.stringify({ failed, ...result }));
-    if (result.identicalExtra !== 0) {
-      // This metric only records candidates that the engine rejected;
-      // a native duplicate is expected to be rejected by deduplication.
-      console.log("PEN_DEDUP_REJECTED " + name + " " + result.identicalExtra);
-    }
+    if (result.identicalExtra !== 1 || result.forwardedPenSamples !== 9)
+      throw Error(name + " coalesced duplicates unexpectedly forwarded: " +
+        JSON.stringify(result));
     console.log("PEN_ARTISTIC_INPUT_PASSED " + name + " " + JSON.stringify(result));
     await page.close();
   } finally {
