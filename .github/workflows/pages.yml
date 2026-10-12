@@ -163,8 +163,8 @@ jobs:
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           node tests/browser-stylus.mjs "$CHROME"
           node tests/browser-brush-quality.mjs "$CHROME"
-      - name: Compare native MyPaint and Hokusai artwork (manual run only)
-        if: github.event_name == 'workflow_dispatch'
+      - name: Compare native MyPaint and Hokusai artwork (PR and manual)
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           set -euo pipefail
@@ -172,8 +172,14 @@ jobs:
           sudo apt-get install -y -qq libmypaint-dev
           cc -O2 -std=c11 -Wall -Wextra tests/upstream-reference-render.c -o /tmp/pfx-ref $(pkg-config --cflags --libs libmypaint) -lm
           mkdir -p test-artifacts
+          python3 -m py_compile tests/compare-reference-artwork.py
+          python3 tests/compare-reference-artwork.py --self-test
           for brush in pencil dry_brush pastel watercolor_glazing; do
-            /tmp/pfx-ref "public/brushes/$brush.myb" "test-artifacts/upstream_$brush.ppm"
+            for scenario in baseline reverse zigzag primed; do
+              suffix=""
+              if [[ "$scenario" != baseline ]]; then suffix="_$scenario"; fi
+              /tmp/pfx-ref "public/brushes/$brush.myb" "test-artifacts/upstream_$brush$suffix.ppm" "$scenario"
+            done
           done
           python3 -m http.server 8732 --directory _site >/tmp/pfx-reference-http.log 2>&1 &
           SERVER_PID=$!
@@ -184,7 +190,7 @@ jobs:
           done
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           node tests/browser-reference-render.mjs "$CHROME"
-          python3 tests/compare-reference-artwork.py
+          python3 tests/compare-reference-artwork.py --check
 
           node tests/browser-texture-checkpoint.mjs "$CHROME"
 
