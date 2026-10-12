@@ -75,19 +75,37 @@ function installMeasurement() {
       pending: null,
       frames: [],
       addMs: [],
+      endMs: [],
+      brushInitMs: [],
       rasterStart: null,
       begin(brush, size) {
         this.pending = null;
         this.frames = [];
-        this.addMs = [];
-        this.samples = 0;
         document.querySelector('[data-brush="' + brush + '"]').click();
         const slider = document.getElementById("size");
         slider.value = String(size);
         slider.dispatchEvent(new Event("input", { bubbles: true }));
+        this.addMs = [];
+        this.endMs = [];
+        this.brushInitMs = [];
+        this.samples = 0;
       }
     };
     window.__pfxLatency = measure;
+    const brushCreate = PaintingEngine.prototype.createBrush;
+    PaintingEngine.prototype.createBrush = function (...args) {
+      const at = performance.now();
+      const result = brushCreate.apply(this, args);
+      if (this.canvas === target) measure.brushInitMs.push(performance.now() - at);
+      return result;
+    };
+    const end = PaintingEngine.prototype.end;
+    PaintingEngine.prototype.end = function (...args) {
+      const at = performance.now();
+      const result = end.apply(this, args);
+      if (this.canvas === target) measure.endMs.push(performance.now() - at);
+      return result;
+    };
     const add = PaintingEngine.prototype.add;
     PaintingEngine.prototype.add = function (event, ...rest) {
       const start = performance.now();
@@ -160,6 +178,8 @@ function reportScenario(brush, size) {
     lastSampleToUploadMs: stats(frames.map(x => x.latestToUploadMs)),
     pixelUploadMs: stats(frames.map(x => x.pixelUploadMs)),
     addProcessingMs: stats(m.addMs),
+    endProcessingMs: stats(m.endMs),
+    brushInitMs: stats(m.brushInitMs),
     rasterMs: stats(frames.map(x => x.rasterMs)),
     eventToUploadMs: stats(frames.map(x => x.eventToUploadMs)),
     eventDelayMs: stats(frames.map(x => x.eventDelayMs)),
@@ -192,7 +212,14 @@ try {
     endpoint: "CanvasRenderingContext2D.putImageData return (not physical display)",
     scenarios: []
   };
-  for (const [brush, size] of [["pencil", 0], ["brush", 0], ["brush", 1]]) {
+  const standard = [["pencil", 0], ["brush", 0], ["brush", 1]];
+  const extended = [
+    ["brush", 2], ["watercolor_expressive", 1], ["oil", 1],
+    ["pastel", 1], ["marker_fat", 1], ["dry_brush", 1],
+    ["textured_ink", 1]
+  ];
+  for (const [brush, size] of (process.env.PFX_LATENCY_STRESS === "1"
+      ? standard.concat(extended) : standard)) {
     await page.evaluate("window.__pfxLatency.begin(" + JSON.stringify(brush) + "," + size + ")");
     const emit = async (type, x, y, buttons) => page.send("Input.dispatchMouseEvent", {
       type, x, y, button: type === "mouseMoved" ? "none" : "left",
