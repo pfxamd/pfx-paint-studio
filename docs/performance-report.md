@@ -119,7 +119,7 @@ run is optional to keep routine CI and deployments short.
 
 ## 2000 heavy-brush strokes in Chromium and Firefox (2026-10-12)
 
-**Verified CI:** [GitHub Actions run 38264932324](https://github.com/pfxamd/pfx-paint-studio/actions/runs/38264932324), using \`tests/heavy-endurance.mjs\`.
+**Verified CI:** [GitHub Actions run 38264932324](https://github.com/pfxamd/pfx-paint-studio/actions/runs/38264932324), using `tests/heavy-endurance.mjs`.
 The test runs the *actual locally bundled Hokusai WASM engine* in two genuine headless
 browsers, drawing 2000 strokes with 8 rotating heavy presets: expressive/glazing
 watercolor, oil, acrylic, pastel, dry brush, textured ink and paint. Each 1200 × 800
@@ -169,6 +169,6 @@ hardware, headless renderers and JIT conditions differ; comparisons are not
 a guarantee of performance on user devices. This is one CI run per browser.
 
 **Repeat:** manually launch the repository's *Build and deploy PFx Paint Studio*
-workflow using \`workflow_dispatch\`, then inspect the
-\`test-artifacts/heavy-endurance.json\` report. The 2000-stroke suite is
+workflow using `workflow_dispatch`, then inspect the
+`test-artifacts/heavy-endurance.json` report. The 2000-stroke suite is
 manual-only after this initial verified run, so it does not delay every PR.
