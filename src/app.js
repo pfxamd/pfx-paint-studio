@@ -157,8 +157,13 @@ canvas.addEventListener("pointermove", (event) => {
   if (subs.length) {
     for (const sample of subs) engine.add(sample, rect);
     const last = subs[subs.length - 1];
+    // The browser's final event can change pen orientation or dwell
+    // without moving the tip. Keep those MyPaint brush inputs, too.
+    // PaintingEngine.add() rejects genuinely redundant jitter samples.
     if (last.clientX !== event.clientX || last.clientY !== event.clientY ||
-        last.pressure !== event.pressure) engine.add(event, rect);
+        last.pressure !== event.pressure || last.tiltX !== event.tiltX ||
+        last.tiltY !== event.tiltY ||
+        event.timeStamp - last.timeStamp >= 12) engine.add(event, rect);
   } else {
     engine.add(event, rect);
   }
