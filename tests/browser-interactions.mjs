@@ -161,14 +161,39 @@ try {
   assert(await page.evaluate("document.querySelector('.brand-mark')?.complete"),"Local brand logo");
   assert((await page.evaluate("document.querySelectorAll('.brush-card').length")) === 12, "Twelve local brushes available");
   await until(async () => await page.evaluate("(() => { const c=document.querySelector('[data-brush=\"charcoal\"] .brush-preview'); const p=c.getContext('2d').getImageData(0,0,c.width,c.height).data;return p.some((v,i)=>i%4===3&&v>0); })()"), "Hokusai generated brush thumbnails", 15000);
+  // Custom cursor follows the actual artwork position without touching pixels.
+  const cursorCenter = await bounds(page,"#paint-canvas");
+  const px = cursorCenter.x + cursorCenter.w * .55, py = cursorCenter.y + cursorCenter.h * .51;
+  await mouse(page,"mouseMoved",px,py);
+  assert(await page.evaluate("document.querySelector('.artboard-stage').classList.contains('cursor-active')"),"Native paint cursor replaced by custom desktop pointer");
+  assert((await page.evaluate("document.querySelector('#paint-pointer').dataset.mode"))==="brush","Brush ring mode available");
+  const ringBefore=await page.evaluate("parseFloat(getComputedStyle(document.querySelector('#paint-pointer .cursor-ring')).width)");
+  assert(ringBefore>3,"Nominal brush diameter renders as a visible circle");
+  await page.evaluate("(() => {const i=document.querySelector('#size');i.value='1';i.dispatchEvent(new Event('input',{bubbles:true}));})()");
+  const ringAfter=await page.evaluate("parseFloat(getComputedStyle(document.querySelector('#paint-pointer .cursor-ring')).width)");
+  assert(ringAfter>ringBefore*1.8 && ringAfter<ringBefore*2.2,"Pointer diameter tracks brush size logarithmically");
+  await page.evaluate("(() => {const i=document.querySelector('#size');i.value='0';i.dispatchEvent(new Event('input',{bubbles:true}));})()");
+  await shot(page,"desktop-pointer.png");
+  await click(page,"#tool-picker");
+  await mouse(page,"mouseMoved",px,py);
+  assert((await page.evaluate("document.querySelector('#paint-pointer').dataset.mode"))==="picker","Eyedropper shows its own pointer");
+  await click(page,"#tool-eraser");
+  await mouse(page,"mouseMoved",px,py);
+  assert((await page.evaluate("document.querySelector('#paint-pointer').dataset.mode"))==="eraser","Eraser shows dashed diameter ring");
+  await click(page,"#tool-brush");
+  await mouse(page,"mouseMoved",px,py);
+  assert((await page.evaluate("document.querySelector('#paint-pointer').dataset.mode"))==="brush","Brush ring restores on tool change");
   assert((await page.evaluate("document.querySelector('#zoom-label').textContent"))==="100%", "Canvas initially fits viewport");
   await click(page, "#zoom-in");
   assert((await page.evaluate("document.querySelector('#zoom-label').textContent"))==="125%", "Zoom in button increases view to 125%");
+  const cursorSizeAtZoom = await page.evaluate("parseFloat(getComputedStyle(document.querySelector('#paint-pointer .cursor-ring')).width)");
+  assert(cursorSizeAtZoom>ringBefore*1.2 && cursorSizeAtZoom<ringBefore*1.3,"Cursor diameter tracks artwork zoom");
   const beforePan = await page.evaluate("document.querySelector('#artboard-frame').style.transform");
   const artbox = await bounds(page, "#paint-canvas");
   const mx = artbox.x + artbox.w / 2, my = artbox.y + artbox.h / 2;
   await page.send("Input.dispatchMouseEvent",{type:"mouseMoved",x:mx,y:my,button:"none",buttons:0});
   await page.send("Input.dispatchMouseEvent",{type:"mousePressed",x:mx,y:my,button:"middle",buttons:4,clickCount:1});
+  assert((await page.evaluate("document.querySelector('#paint-pointer').dataset.mode"))==="grabbing","Closed hand cursor during panning");
   await page.send("Input.dispatchMouseEvent",{type:"mouseMoved",x:mx+65,y:my+30,button:"none",buttons:4});
   await page.send("Input.dispatchMouseEvent",{type:"mouseReleased",x:mx+65,y:my+30,button:"middle",buttons:0,clickCount:1});
   assert((await page.evaluate("document.querySelector('#artboard-frame').style.transform"))!==beforePan, "Middle-mouse pan moves canvas");
@@ -266,6 +291,7 @@ try {
   assert(mobile.w<=mobile.iw+2,"390px viewport without horizontal overflow");
   assert(mobile.h<=mobile.ih+2,"844px viewport without vertical overflow");
   assert(mobile.b,"Drawing surface visible on mobile");
+  assert(!(await page.evaluate("document.querySelector('.artboard-stage').classList.contains('cursor-active')")),"Desktop cursor is disabled on mobile");
   await shot(page,"mobile.png");
 
   await page.evaluate("window.confirm = () => true");
