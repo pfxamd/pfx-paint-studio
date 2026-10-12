@@ -1,0 +1,109 @@
+/* Desktop paint pointers — overlay never intercepts drawing or panning. */
+.paint-pointer { display:none; pointer-events:none; }
+@media (min-width:781px) {
+  .artboard-stage.cursor-active #paint-canvas,
+  .artboard-stage.cursor-active.pan-ready #paint-canvas,
+  .artboard-stage.cursor-active.panning #paint-canvas {
+    cursor:none;
+  }
+  .paint-pointer {
+    display:block;
+    position:absolute;
+    top:0;
+    left:0;
+    width:0;
+    height:0;
+    opacity:0;
+    visibility:hidden;
+    z-index:4;
+    pointer-events:none;
+    transform:translate3d(-9999px,-9999px,0);
+    will-change:transform;
+  }
+  .paint-pointer.visible { opacity:1;visibility:visible; }
+  .cursor-ring {
+    position:absolute;
+    left:0;top:0;
+    width:var(--cursor-diameter,20px);
+    height:var(--cursor-diameter,20px);
+    border-radius:50%;
+    transform:translate(-50%,-50%);
+    border:1px solid #f9f9fa;
+    outline:1px solid #11151bcc;
+    outline-offset:0;
+    box-shadow:0 0 0 .5px #ffffff65,0 0 6px #00000023;
+    background:transparent;
+  }
+  .cursor-center {
+    position:absolute;
+    left:0;top:0;
+    width:3px;height:3px;
+    transform:translate(-50%,-50%);
+    border:1px solid #fff;
+    border-radius:50%;
+    background:#121519;
+    box-shadow:0 0 0 1px #11151988;
+  }
+  .cursor-eraser-mark {
+    position:absolute;left:0;top:0;
+    width:8px;height:8px;
+    transform:translate(-50%,-50%) rotate(-45deg);
+    border:1.5px solid #fff;
+    background:#151a20e6;
+    border-radius:2px;
+    box-shadow:0 0 0 1px #1013199e;
+    display:none;
+  }
+  .cursor-picker {
+    position:absolute;
+    left:-2px;top:2px;
+    width:29px;height:29px;
+    overflow:visible;
+    color:#f6f5f3;
+    fill:none;
+    stroke:currentColor;
+    stroke-width:2;
+    stroke-linejoin:round;
+    stroke-linecap:round;
+    filter:drop-shadow(0 1px 1px #000c) drop-shadow(0 0 1px #000d);
+    display:none;
+  }
+  .cursor-colour-chip {
+    position:absolute;
+    left:18px;top:22px;
+    width:13px;height:13px;
+    border-radius:4px;
+    border:2px solid white;
+    background:var(--cursor-colour,#242830);
+    box-shadow:0 0 0 1px #111a22,0 2px 5px #0008;
+    display:none;
+  }
+  .cursor-hand {
+    position:absolute;
+    left:-10px;top:-10px;
+    width:27px;height:32px;
+    stroke:#f9f7f3;
+    stroke-width:1.8;
+    fill:#22272ee8;
+    stroke-linejoin:round;
+    stroke-linecap:round;
+    filter:drop-shadow(0 1px 2px #000c);
+    display:none;
+  }
+  .paint-pointer[data-mode="eraser"] .cursor-ring {
+    border-style:dashed;
+    border-color:#f9f9fa;
+  }
+  .paint-pointer[data-mode="eraser"] .cursor-center { display:none; }
+  .paint-pointer[data-mode="eraser"] .cursor-eraser-mark { display:block; }
+  .paint-pointer[data-mode="picker"] .cursor-ring,
+  .paint-pointer[data-mode="picker"] .cursor-center,
+  .paint-pointer[data-mode="grab"] .cursor-ring,
+  .paint-pointer[data-mode="grab"] .cursor-center,
+  .paint-pointer[data-mode="grabbing"] .cursor-ring,
+  .paint-pointer[data-mode="grabbing"] .cursor-center { display:none; }
+  .paint-pointer[data-mode="picker"] .cursor-picker,
+  .paint-pointer[data-mode="picker"] .cursor-colour-chip { display:block; }
+  .paint-pointer[data-mode="grab"] .cursor-hand-open,
+  .paint-pointer[data-mode="grabbing"] .cursor-hand-closed { display:block; }
+}
