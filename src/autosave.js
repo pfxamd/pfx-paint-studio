@@ -53,7 +53,9 @@ export async function loadArtwork(db, width, height) {
       saved.height !== height || !Array.isArray(saved.history) ||
       !Array.isArray(saved.redoStack) ||
       !saved.history.every(validStroke) || !saved.redoStack.every(validStroke)) {
-    throw new Error("Saved artwork is incompatible or damaged");
+    const error = new Error("Saved artwork is incompatible or damaged");
+    error.name = "InvalidArtworkError";
+    throw error;
   }
   return saved;
 }
@@ -76,34 +78,88 @@ function writeArtwork(db, snapshot) {
   });
 }
 
+/**
+ * Preserve damaged/incompatible data before starting a new autosaved document.
+ * Never overwrite an earlier emergency backup with subsequent failed loads.
+ */
+export function backupInvalidArtwork(db) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, "readwrite");
+    const store = tx.objectStore(STORE);
+    const backupKey = "unreadable-backup";
+    const backup = store.get(backupKey);
+    backup.onsuccess = () => {
+      if (backup.result !== undefined) return;
+      const original = store.get(DOCUMENT);
+      original.onsuccess = () => {
+        if (original.result !== undefined) store.put(original.result, backupKey);
+      };
+    };
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error || Error("Could not preserve damaged artwork"));
+    tx.onabort = () => reject(tx.error || Error("Artwork backup transaction aborted"));
+  });
+}
+
+/**
+ * Coalesced, lazy snapshots prevent synchronous O(history) clones for every
+ * rapid stroke. On failure the latest unsaved document is retained and retried
+ * with bounded exponential backoff, never a hot synchronous retry loop.
+ */
 export function createAutosave(db, onStatus) {
   let pending = null;
+  let timer = null;
   let writing = false;
+  let failures = 0;
+
+  function schedule(delay) {
+    if (timer !== null) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      void flush();
+    }, delay);
+  }
 
   async function flush() {
-    if (writing) return;
+    if (writing || !pending) return;
     writing = true;
     try {
       while (pending) {
-        const next = pending;
+        const makeSnapshot = pending;
         pending = null;
-        await writeArtwork(db, next);
+        try {
+          await writeArtwork(db, makeSnapshot());
+          failures = 0;
+        } catch (error) {
+          // Another completed stroke may already have replaced this snapshot.
+          if (!pending) pending = makeSnapshot;
+          failures += 1;
+          console.error("PFx Paint local save failed:", error);
+          onStatus("Save failed");
+          schedule(Math.min(30000, 1000 * 2 ** Math.min(failures - 1, 5)));
+          return;
+        }
       }
       onStatus("Saved locally");
-    } catch (error) {
-      console.error("PFx Paint local save failed:", error);
-      onStatus("Save failed");
     } finally {
       writing = false;
-      if (pending) void flush();
+      if (pending && timer === null) schedule(0);
     }
   }
 
+  function onPageHidden() {
+    if (document.visibilityState === "hidden" && pending) schedule(0);
+  }
+  document.addEventListener("visibilitychange", onPageHidden);
+
   return {
-    save(snapshot) {
-      pending = snapshot;
+    save(makeSnapshot) {
+      if (typeof makeSnapshot !== "function") {
+        throw new TypeError("Autosave expects a snapshot producer");
+      }
+      pending = makeSnapshot;
       onStatus("Saving…");
-      void flush();
+      schedule(160);
     }
   };
 }

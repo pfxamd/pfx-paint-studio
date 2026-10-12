@@ -1,7 +1,7 @@
 import { PaintingEngine, BRUSHES } from "./engine.js";
 import { CanvasViewport } from "./viewport.js";
 import { PaintCursor } from "./paint-cursor.js";
-import { openArtworkDatabase, loadArtwork, createAutosave } from "./autosave.js";
+import { openArtworkDatabase, loadArtwork, backupInvalidArtwork, createAutosave } from "./autosave.js";
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("paint-canvas");
@@ -59,7 +59,7 @@ function updateHistory(changed = false) {
   undo.disabled = !engine?.canUndo;
   redo.disabled = !engine?.canRedo;
   // Only completed strokes, undo/redo and clear change the saved artwork.
-  if (changed && engine && autosave) autosave.save(engine.snapshot());
+  if (changed && engine && autosave) autosave.save(() => engine.snapshot());
 }
 function useTool(name) {
   if (!["brush", "eraser", "picker"].includes(name)) return;
@@ -109,7 +109,7 @@ size.addEventListener("input", () => applySize(size.value));
 undo.addEventListener("click", () => { if (!paintingBusy) engine?.undo(); });
 redo.addEventListener("click", () => { if (!paintingBusy) engine?.redo(); });
 $("clear").addEventListener("click", () => {
-  if (!engine || paintingBusy || !engine.canUndo) return;
+  if (!engine || paintingBusy || (!engine.canUndo && !engine.canRedo)) return;
   if (!window.confirm("Clear the entire artwork? This cannot be undone.")) return;
   engine.clear();
   status.textContent = "Canvas cleared";
@@ -205,16 +205,26 @@ async function start() {
     let recovered = false;
     try {
       const database = await openArtworkDatabase();
-      const saved = await loadArtwork(database, canvas.width, canvas.height);
-      if (saved) {
-        readyEngine.restoreArtwork(saved);
-        recovered = saved.history.length > 0 || saved.redoStack.length > 0;
+      let damagedBackup = false;
+      try {
+        const saved = await loadArtwork(database, canvas.width, canvas.height);
+        if (saved) {
+          readyEngine.restoreArtwork(saved);
+          recovered = saved.history.length > 0 || saved.redoStack.length > 0;
+        }
+      } catch (readError) {
+        if (readError.name !== "InvalidArtworkError") throw readError;
+        // Do not destroy the original record on a failed validation.
+        await backupInvalidArtwork(database);
+        damagedBackup = true;
+        console.warn("PFx Paint retained an unreadable artwork backup:", readError);
+        message("Previous artwork could not be read — backup preserved");
       }
       autosave = createAutosave(database, (value) => {
         autosaveStatus.textContent = value;
         if (value === "Save failed") message("Autosave failed — export a PNG");
       });
-      autosaveStatus.textContent = recovered ? "Restored locally" : "Local save ready";
+      autosaveStatus.textContent = damagedBackup ? "Backup preserved" : recovered ? "Restored locally" : "Local save ready";
     } catch (error) {
       console.warn("PFx Paint autosave unavailable:", error);
       autosaveStatus.textContent = "Autosave unavailable";
