@@ -16,6 +16,10 @@ Features: 12 bundled Hokusai-powered artist brushes with real rendered previews,
 - A service worker caches every runtime asset after first successful visit, permitting offline revisits where supported.
 - Autosave coalesces rapid updates, retries failed writes with bounded delays, and preserves an unreadable saved record under a separate local backup key before allowing a fresh session to save. Clearing redo-only history is supported.
 
+## Performance verification
+
+Measured long-session results and limitations are documented in [`docs/performance-report.md`](docs/performance-report.md). The existing browser interaction checks always run on deployment; the long benchmark runs on manual workflow dispatch to keep normal publishing responsive.
+
 ## Mouse drawing responsiveness
 
 The stroke pipeline preserves native browser coalesced samples, fills large gaps with bounded spatial substeps (without lagging the endpoint), and caches artwork positioning for each stroke. The vendored WASM renderer now tracks dirty 64px tiles and updates only modified pixels during interactive painting. Full-frame rendering remains available for PNG export, undo and clear; colour sampling consumes any pending dirty region without rebuilding the entire bitmap. ImageData buffers are reused until WASM memory changes. A small mouse-only cap on upstream `SlowTracking` reduces excessive brush-follow lag while preserving each brush's per-dab behaviour and original pen dynamics. Existing saved artwork without device-type metadata remains compatible.
