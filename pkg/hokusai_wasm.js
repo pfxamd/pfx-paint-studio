@@ -85,6 +85,14 @@ export class HokusaiCanvas {
         wasm.__wbg_hokusaicanvas_free(ptr, 0);
     }
     /**
+     * Clone the tiled surface and brush state after a completed stroke.
+     * @returns {HokusaiCheckpoint}
+     */
+    checkpoint() {
+        const ret = wasm.hokusaicanvas_checkpoint(this.__wbg_ptr);
+        return HokusaiCheckpoint.__wrap(ret);
+    }
+    /**
      * Drop all painted tiles and reset stroke state. Cheaper and safer than
      * reconstructing the canvas object on the JS side.
      */
@@ -175,6 +183,14 @@ export class HokusaiCanvas {
         wasm.hokusaicanvas_resetStroke(this.__wbg_ptr);
     }
     /**
+     * Restore a known tile checkpoint, invalidating the full output buffer.
+     * @param {HokusaiCheckpoint} saved
+     */
+    restoreCheckpoint(saved) {
+        _assertClass(saved, HokusaiCheckpoint);
+        wasm.hokusaicanvas_restoreCheckpoint(this.__wbg_ptr, saved.__wbg_ptr);
+    }
+    /**
      * Feed one pointer event. `dtime` is seconds since the previous call.
      *
      * `xtilt` / `ytilt` are pen tilt in [-1, 1], matching libmypaint's
@@ -200,6 +216,30 @@ export class HokusaiCanvas {
     }
 }
 if (Symbol.dispose) HokusaiCanvas.prototype[Symbol.dispose] = HokusaiCanvas.prototype.free;
+
+/**
+ * A compact in-memory checkpoint of the brush surface. This never leaves the
+ * browser, and excludes the full RGBA preview buffer.
+ */
+export class HokusaiCheckpoint {
+    static __wrap(ptr) {
+        const obj = Object.create(HokusaiCheckpoint.prototype);
+        obj.__wbg_ptr = ptr;
+        HokusaiCheckpointFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        HokusaiCheckpointFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_hokusaicheckpoint_free(ptr, 0);
+    }
+}
+if (Symbol.dispose) HokusaiCheckpoint.prototype[Symbol.dispose] = HokusaiCheckpoint.prototype.free;
 
 export function start() {
     wasm.start();
@@ -239,6 +279,9 @@ const HokusaiBrushFinalization = (typeof FinalizationRegistry === 'undefined')
 const HokusaiCanvasFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_hokusaicanvas_free(ptr, 1));
+const HokusaiCheckpointFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_hokusaicheckpoint_free(ptr, 1));
 
 function _assertClass(instance, klass) {
     if (!(instance instanceof klass)) {
