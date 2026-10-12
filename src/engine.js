@@ -275,9 +275,19 @@ export class PaintingEngine {
           cache.set(key, brush);
         }
         this.surface.resetStroke();
-        for (const point of stroke.points) {
-          this.surface.strokeTo(brush, point.x, point.y, point.pressure, point.xtilt, point.ytilt, point.dt);
+        // Batch only saved-stroke playback: the same samples, in the same order,
+        // cross JS/WASM once per stroke instead of once per sample.
+        const packed = new Float64Array(stroke.points.length * 6);
+        for (let p = 0, offset = 0; p < stroke.points.length; p++, offset += 6) {
+          const point = stroke.points[p];
+          packed[offset] = point.x;
+          packed[offset + 1] = point.y;
+          packed[offset + 2] = point.pressure;
+          packed[offset + 3] = point.xtilt;
+          packed[offset + 4] = point.ytilt;
+          packed[offset + 5] = point.dt;
         }
+        this.surface.strokePath(brush, packed);
         this.surface.finishStroke(brush);
         this.surface.resetStroke();
         if ((index + 1) % 24 === 0) this.recordCheckpointFor(index + 1);
