@@ -393,6 +393,7 @@ try {
       const checksum=await hash(target);
       restored.undo();restored.redo();restored.renderNow();
       const redo=await hash(target);
+      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
       restored.releaseCheckpoints();restored.active.free();restored.surface.free();
       return {usedCache,match:checksum===original&&redo===original};
     };
@@ -403,6 +404,7 @@ try {
     const old={...saved};
     delete old.tileCache;
     const legacy=await run(old);
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
     paint.releaseCheckpoints();paint.active.free();paint.surface.free();
     return {count:saved.tileCache?.checkpoints?.length||0,bytes:bytes?.byteLength||0,
       valid,invalid,legacy};
