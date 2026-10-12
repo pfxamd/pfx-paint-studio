@@ -168,7 +168,7 @@ try {
   assert(await page.evaluate("document.querySelector('.artboard-stage').classList.contains('cursor-active')"),"Native paint cursor replaced by custom desktop pointer");
   assert((await page.evaluate("document.querySelector('#paint-pointer').dataset.mode"))==="brush","Brush ring mode available");
   const ringBefore=await page.evaluate("parseFloat(getComputedStyle(document.querySelector('#paint-pointer .cursor-ring')).width)");
-  assert(ringBefore>3,"Nominal brush diameter renders as a visible circle");
+  assert(ringBefore>=1.5,"Nominal brush diameter renders at fine detail sizes");
   await page.evaluate("(() => {const i=document.querySelector('#size');i.value='1';i.dispatchEvent(new Event('input',{bubbles:true}));})()");
   const ringAfter=await page.evaluate("parseFloat(getComputedStyle(document.querySelector('#paint-pointer .cursor-ring')).width)");
   assert(ringAfter>ringBefore*1.8 && ringAfter<ringBefore*2.2,"Pointer diameter tracks brush size logarithmically");

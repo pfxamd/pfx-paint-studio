@@ -92,7 +92,7 @@ export class PaintCursor {
     const paperPixelScale = paper.width / this.canvas.width;
     const diameter = 2 * nominalRadius * paperPixelScale;
     // Restrict the display diameter, NOT the actual engine size or exported image.
-    const visualDiameter = Math.max(4, Math.min(1000, diameter));
+    const visualDiameter = Math.max(1.5, Math.min(1000, diameter));
     this.overlay.style.setProperty("--cursor-diameter", visualDiameter + "px");
     this.overlay.style.setProperty("--cursor-colour", engine.color);
     this.overlay.style.transform = "translate3d(" + (x - stageRect.left) +
