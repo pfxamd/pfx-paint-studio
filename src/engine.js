@@ -379,18 +379,30 @@ export class PaintingEngine {
       const digest = await crypto.subtle.digest("SHA-256", bytes);
       return Array.from(new Uint8Array(digest), v => v.toString(16).padStart(2, "0")).join("");
     };
+    const checksum = async bytes => {
+      const digest = await crypto.subtle.digest("SHA-256", bytes);
+      return Array.from(new Uint8Array(digest), v => v.toString(16).padStart(2, "0")).join("");
+    };
     try {
       const checkpoints = [];
       let compressedSize = 0;
-      for (const item of candidates) {
+      // Keep the newest restorable state even when earlier snapshots would
+      // exceed the autosave budget. Older ones improve only deep undo.
+      for (const item of candidates.reverse()) {
         const stream = new Blob([item.tiles]).stream()
           .pipeThrough(new CompressionStream("deflate"));
         const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+        if (compressedSize + bytes.byteLength > 12 * 1024 * 1024) continue;
         compressedSize += bytes.byteLength;
-        if (compressedSize > 12 * 1024 * 1024) return saved;
-        checkpoints.push({ count: item.count, digest: await fingerprint(item.count), bytes });
+        checkpoints.push({
+          count: item.count, digest: await fingerprint(item.count),
+          tilesDigest: await checksum(item.tiles), bytes
+        });
       }
-      saved.tileCache = { format: "PFXT1-deflate", checkpoints };
+      if (checkpoints.length) {
+        checkpoints.sort((a,b) => a.count - b.count);
+        saved.tileCache = { format: "PFXT1-deflate", checkpoints };
+      }
     } catch {
       // Compression or storage acceleration is never required for autosave.
     }
@@ -411,6 +423,10 @@ export class PaintingEngine {
       const digest = await crypto.subtle.digest("SHA-256", bytes);
       return Array.from(new Uint8Array(digest), v => v.toString(16).padStart(2, "0")).join("");
     };
+    const checksum = async bytes => {
+      const digest = await crypto.subtle.digest("SHA-256", bytes);
+      return Array.from(new Uint8Array(digest), v => v.toString(16).padStart(2, "0")).join("");
+    };
     this.releaseCheckpoints();
     this.history = saved.history;
     this.redoStack = saved.redoStack;
@@ -424,6 +440,7 @@ export class PaintingEngine {
             !(entry.bytes instanceof Uint8Array) ||
             entry.bytes.byteLength > 12 * 1024 * 1024 ||
             typeof entry.digest !== "string" ||
+            typeof entry.tilesDigest !== "string" ||
             entry.digest !== await fingerprint(entry.count)) continue;
         const reader = new Blob([entry.bytes]).stream()
           .pipeThrough(new DecompressionStream("deflate")).getReader();
@@ -445,7 +462,8 @@ export class PaintingEngine {
           data.set(chunk, offset);
           offset += chunk.byteLength;
         }
-        if (!this.surface.restoreTiles(data)) continue;
+        if (entry.tilesDigest !== await checksum(data) ||
+            !this.surface.restoreTiles(data)) continue;
         this.checkpoints.push({ count: entry.count, snapshot: this.surface.checkpoint() });
         restoredCount = entry.count;
       } catch {
