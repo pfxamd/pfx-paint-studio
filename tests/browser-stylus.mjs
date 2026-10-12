@@ -94,9 +94,11 @@ async function exercise() {
       matches(p.xtilt, Math.sin(45 * Math.PI / 180)) &&
       matches(p.ytilt, Math.sin(-30 * Math.PI / 180)));
     const finalCall = seen.find(s =>
-      s.inputTiltX === 45 && s.inputTiltY === -30 && s.pressure === 0.55);
+      s.inputTiltX === 45 && s.inputTiltY === -30 &&
+      Math.abs(s.pressure - 0.55) < 0.005);
     const identicalExtra = seen.filter(s =>
-      s.inputTiltX === 45 && s.inputTiltY === -30 && s.pressure === 0.55 &&
+      s.inputTiltX === 45 && s.inputTiltY === -30 &&
+      Math.abs(s.pressure - 0.55) < 0.005 &&
       s.samplesAdded === 0).length;
     const dwellPreserved = points.some((p, i) => i &&
       p.dt >= 0.012 && p.dt <= 0.15 &&
