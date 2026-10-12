@@ -159,9 +159,14 @@ export class PaintingEngine {
     const distance = Math.hypot(point.x - previous.x, point.y - previous.y);
     const pressureDelta = Math.abs(point.pressure - previous.pressure);
     const elapsed = point.time - previous.time;
-    // Eliminate duplicate coalesced samples. Keep pressure changes and brush
-    // dwell events, which matter for pens and textured brush dynamics.
-    if (distance < 0.04 && pressureDelta < 0.005 && elapsed < 12) return;
+    // Eliminate nearly identical coalesced samples, but preserve pressure,
+    // pen tilt and dwell changes that affect artistic brush dynamics.
+    // Tilt inputs are normalized to [-1, 1]; 0.001 rejects only tiny jitter.
+    // Avoid extra tilt comparisons on the common mouse/touch fast path.
+    if (distance < 0.04 && pressureDelta < 0.005 && elapsed < 12 &&
+        (this.inputType !== "pen" ||
+          (Math.abs(point.xtilt - previous.xtilt) < 0.001 &&
+           Math.abs(point.ytilt - previous.ytilt) < 0.001))) return;
 
     // The engine places dabs on segments; bounded spatial substeps keep
     // speed-dependent strokes stable when the browser coalesces rapid movement.
