@@ -37,7 +37,7 @@ jobs:
       - name: Install wasm-pack
         uses: jetli/wasm-pack-action@0d096b08b4e5a7de8c28de67e11e945404e9eefa
         with:
-          version: latest
+          version: 0.15.0
 
       - name: Prepare Node 22 for browser interaction tests
         uses: actions/setup-node@v4
@@ -55,7 +55,12 @@ jobs:
           node --check tests/browser-interactions.mjs
 
       - name: Test Hokusai brush engine
-        run: cargo test --manifest-path vendor/hokusai/Cargo.toml -p hokusai-core -p hokusai-brush -p hokusai-tile-mem
+        run: |
+          if test -f vendor/hokusai/Cargo.lock; then
+            cargo test --locked --manifest-path vendor/hokusai/Cargo.toml -p hokusai-core -p hokusai-brush -p hokusai-tile-mem
+          else
+            cargo test --manifest-path vendor/hokusai/Cargo.toml -p hokusai-core -p hokusai-brush -p hokusai-tile-mem
+          fi
 
       - name: Compile bundled engine to WebAssembly
         run: |
@@ -80,6 +85,9 @@ jobs:
           test -s _site/src/viewport.js
           test -s _site/src/paint-cursor.css
           test -s _site/src/paint-cursor.js
+          if git ls-files --error-unmatch vendor/hokusai/Cargo.lock >/dev/null 2>&1; then
+            git diff --exit-code -- vendor/hokusai/Cargo.lock
+          fi
           if grep -REn 'https?://' _site/src _site/index.html _site/sw.js; then
             echo "External runtime URL detected"
             exit 1
@@ -115,7 +123,7 @@ jobs:
           mkdir -p pkg
           cp _site/pkg/hokusai_wasm.js pkg/hokusai_wasm.js
           cp _site/pkg/hokusai_wasm_bg.wasm pkg/hokusai_wasm_bg.wasm
-          git add -f pkg/hokusai_wasm.js pkg/hokusai_wasm_bg.wasm
+          git add -f pkg/hokusai_wasm.js pkg/hokusai_wasm_bg.wasm vendor/hokusai/Cargo.lock
           if ! git diff --cached --quiet; then
             git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "build: preserve self-hosted Hokusai WASM browser runtime"
             git push origin HEAD:main

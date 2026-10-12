@@ -12,8 +12,9 @@ Features: 12 bundled Hokusai-powered artist brushes with real rendered previews,
 - Twelve `.myb` artist brush settings are stored in `public/brushes/` (4 from Hokusai examples and 8 CC0 presets from the official MyPaint brush collection; see `public/brushes/ATTRIBUTION.md`). Original PFx logo is `public/brand/Red-pfx.svg`.
 - All runtime assets — styles, JS, compiled WASM, brushes and logo — are served from this repository's GitHub Pages site. No CDN, externally hosted font, remote API or image uploads.
 - Completed strokes, undo/redo and clearing are saved automatically in this browser using IndexedDB, then restored when the studio opens again. The artwork and undo history stay on the device: there is no server upload. Each browser/profile has independent local artwork. Saving may be unavailable in restricted/private browser settings; check the local-save indicator and use PNG export as a separate copy. A sudden browser crash while a stroke is still in progress may lose that unfinished stroke.
-- Undo/redo reconstructs the canvas by replaying recorded strokes. This is correct but may require optimization for very large artwork histories.
+- Undo/redo reconstructs the canvas from a bounded set of three in-memory tiled-surface checkpoints (one every 24 completed strokes), replaying only the remaining stroke segment. Restored documents rebuild these checkpoints locally; none are transmitted or saved externally.
 - A service worker caches every runtime asset after first successful visit, permitting offline revisits where supported.
+- Autosave coalesces rapid updates, retries failed writes with bounded delays, and preserves an unreadable saved record under a separate local backup key before allowing a fresh session to save. Clearing redo-only history is supported.
 
 ## Mouse drawing responsiveness
 
@@ -47,7 +48,7 @@ python3 -m http.server 8000
 
 Open `http://localhost:8000/`. Direct `file://` launching is not supported due to native ES modules and WASM loading.
 
-Cargo and compiler/build tooling still resolve external Rust crates at **build time**; a completely offline Rust build has not been implemented. Browser runtime is entirely self-contained.
+Cargo and compiler/build tooling still resolve external Rust crates at **build time**; a completely offline Rust build has not been implemented. The workflow preserves the Rust dependency lockfile and pins the `wasm-pack` release to reduce unplanned build changes. Browser runtime is entirely self-contained.
 
 ## GitHub Pages
 
