@@ -5,7 +5,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 const PORT = process.env.PFX_TEST_URL || "http://127.0.0.1:8732/";
 const CHROME = process.argv[2] || "/usr/bin/google-chrome";
 const PRESETS = ["pencil", "dry_brush", "pastel", "watercolor_glazing"];
-const SCENARIOS = ["baseline", "reverse", "zigzag"];
+const SCENARIOS = ["baseline", "reverse", "zigzag", "primed"];
 await mkdir("test-artifacts", { recursive: true });
 const browser = await chromium.launch({executablePath: CHROME, headless: true,
   args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"]});
@@ -24,6 +24,12 @@ try {
         try {
           brush.setColorHsv(0.6, 0.7, 0.8);
           canvas.resetStroke();
+          // Match the two zero-pressure hover samples in the native harness.
+          if (scenario === "primed") {
+            for (let k = 0; k < 2; k++) {
+              canvas.strokeTo(brush, 24, 90, 0, 0, 0, 0.09);
+            }
+          }
           let x = 24, y = 90, pressure = 0.2;
           for (let i = 0; i <= 40; i++) {
             x = scenario === "reverse" ? 280 - i*6 : 24 + i*6;
