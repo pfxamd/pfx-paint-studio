@@ -173,7 +173,8 @@ mod tests {
 
         let mut duplicate = encoded.clone();
         let second = 20 + 8 + 64 * 64 * 8;
-        duplicate[second..second + 8].copy_from_slice(&duplicate[20..28]);
+        let first_coord = duplicate[20..28].to_vec();
+        duplicate[second..second + 8].copy_from_slice(&first_coord);
         assert!(MemSurface::import_tiles(&duplicate, 320, 240).is_none());
     }
 
