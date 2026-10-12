@@ -186,6 +186,8 @@
     background-color: #22262b;
     background-image:
       radial-gradient(ellipse at 50% 48%,#35393d 0%,#292c31 56%,#202329 100%);
+    background-repeat: no-repeat;
+    background-size: cover;
     border-right: 1px solid #2e3137;
   }
   .workspace-heading {

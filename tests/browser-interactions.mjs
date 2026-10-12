@@ -186,9 +186,10 @@ try {
       brush:b(".brush-section"), palette:b(".colour-section"), sizing:b(".size-section"),
       topbar:b(".topbar"), save:b("#save"), doc:b(".workspace-heading"),
       bg:getComputedStyle(document.querySelector(".workspace")).backgroundImage,
+      bgSize:getComputedStyle(document.querySelector(".workspace")).backgroundSize,
       noOverflow: document.documentElement.scrollWidth<=innerWidth+2 && document.documentElement.scrollHeight<=innerHeight+2 };
   })()`);
-  assert(ui.bg.includes("radial-gradient"), "Graphite artist-workspace surface is loaded");
+  assert(ui.bg.includes("radial-gradient") && ui.bgSize === "cover", "Smooth, un-tiled graphite workbench background");
   assert(ui.paper.x>=ui.stage.x-3 && ui.paper.right<=ui.stage.right+3 &&
     ui.paper.y>=ui.stage.y-3 && ui.paper.bottom<=ui.stage.bottom+3, "Artboard fits inside workbench without clipping");
   assert(ui.palette.y>ui.brush.y && ui.sizing.y>ui.palette.y &&

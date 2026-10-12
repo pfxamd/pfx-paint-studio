@@ -7,6 +7,7 @@ Features: 12 bundled Hokusai-powered artist brushes with real rendered previews,
 ## Runtime architecture
 
 - Original UI, pointer input, stroke history and PNG export: `index.html`, `src/app.js`, `src/engine.js`, `src/style.css`.
+- Desktop-only visual finish (graphite workbench, brush gallery, toolbar, typography and palette) is isolated in `src/studio-polish.css`; the existing mobile presentation and drawing algorithms remain independently editable.
 - Hokusai core, `.myb` parser, in-memory tiled surface, and WASM bindings: source copied into `vendor/hokusai/`.
 - Twelve `.myb` artist brush settings are stored in `public/brushes/` (4 from Hokusai examples and 8 CC0 presets from the official MyPaint brush collection; see `public/brushes/ATTRIBUTION.md`). Original PFx logo is `public/brand/Red-pfx.svg`.
 - All runtime assets — styles, JS, compiled WASM, brushes and logo — are served from this repository's GitHub Pages site. No CDN, externally hosted font, remote API or image uploads.

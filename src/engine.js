@@ -261,7 +261,7 @@ export class PaintingEngine {
         rgba[i] = 230;
         rgba[i + 1] = 227;
         rgba[i + 2] = 221;
-        rgba[i + 3] = Math.min(255, Math.round(amount * 1.75));
+        rgba[i + 3] = Math.min(255, Math.round(Math.sqrt(Math.max(0, amount) / 255) * 305));
       }
       preview.getContext("2d").putImageData(new ImageData(rgba, width, height), 0, 0);
     } finally {
