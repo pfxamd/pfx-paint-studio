@@ -86,13 +86,12 @@ int main(int argc, char **argv) {
     x = 24.0f + i*6.0f;
     y = 90.0f + 12.0f*sinf(i*0.25f);
     p = clamp01(0.25f + 0.6f*fabsf(sinf(i*0.09f)));
-    mypaint_brush_stroke_to(brush,surface,x,y,p,0,0,i?0.015:0.01,1,0,0,FALSE);
+    mypaint_brush_stroke_to(brush,surface,x,y,p,0,0,i?0.015:0.01);
   }
   for (int i=0;i<8;i++)
-    mypaint_brush_stroke_to(brush,surface,x,y,p,0,0,0.016,1,0,0,FALSE);
+    mypaint_brush_stroke_to(brush,surface,x,y,p,0,0,0.016);
   MyPaintRectangle rect={0,0,W,H};
-  MyPaintRectangles rois={1,&rect};
-  mypaint_surface_end_atomic(surface,&rois);
+  mypaint_surface_end_atomic(surface,&rect);
   int ok=save_ppm((MyPaintTiledSurface*)surface,argv[2]);
   mypaint_brush_unref(brush);
   mypaint_surface_unref(surface);
