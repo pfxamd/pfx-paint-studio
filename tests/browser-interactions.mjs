@@ -383,6 +383,9 @@ try {
     };
     const original=await hash(canvas);
     const saved=await paint.snapshotForAutosave();
+    const savedAgain=await paint.snapshotForAutosave();
+    const reusedPayload=savedAgain.tileCache?.checkpoints?.[0]?.bytes ===
+      saved.tileCache?.checkpoints?.[0]?.bytes;
     const bytes=saved.tileCache?.checkpoints?.[0]?.bytes;
     const spawn=()=>new PaintingEngine(document.createElement("canvas"),paint.wasm,paint.brushSources,()=>{});
     const run=async data=>{
@@ -410,9 +413,10 @@ try {
     await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
     paint.releaseCheckpoints();paint.active.free();paint.surface.free();
     return {count:saved.tileCache?.checkpoints?.length||0,bytes:bytes?.byteLength||0,
-      valid,invalid,digestMismatch,legacy};
+      reusedPayload,valid,invalid,digestMismatch,legacy};
   })()`);
   assert(checkpointSave.count>0 && checkpointSave.bytes>0 &&
+    checkpointSave.reusedPayload &&
     checkpointSave.valid.usedCache && checkpointSave.valid.match,
     "Compressed lossless fix15 checkpoint accelerates local artwork restore");
   assert(!checkpointSave.invalid.usedCache && checkpointSave.invalid.match &&
