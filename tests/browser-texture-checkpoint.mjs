@@ -56,14 +56,14 @@ async function exercise() {
 
       const restored = clone();
       all.push(restored);
-      const used = await restored.restoreSavedArtwork(saved);
+      const used = await restored.restoreSavedArtwork(structuredClone(saved));
       const restoredDigest = await hash(restored);
       if (!used || restoredDigest !== expected)
         throw Error(preset + ": cached texture does not match original pixels");
 
       const full = clone();
       all.push(full);
-      full.restoreArtwork(saved);
+      full.restoreArtwork(structuredClone(saved));
       if (await hash(full) !== expected)
         throw Error(preset + ": full stroke replay changed texture");
 
