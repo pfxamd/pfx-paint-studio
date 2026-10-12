@@ -15,7 +15,7 @@ THRESHOLDS = (200, 230, 240, 250)
 
 def ppm(path):
     raw = path.read_bytes()
-    header = f"P6\\n{W} {H}\\n255\\n".encode()
+    header = f"P6\n{W} {H}\n255\n".encode()
     if not raw.startswith(header) or len(raw) != len(header) + W * H * 3:
         raise ValueError(f"Invalid PPM: {path}")
     return raw[len(header):]
@@ -25,10 +25,10 @@ def write_png(path, width, height, data):
     def chunk(kind, payload):
         return (struct.pack(">I", len(payload)) + kind + payload +
                 struct.pack(">I", zlib.crc32(kind + payload) & 0xffffffff))
-    scanlines = b"".join(b"\\0" + data[y*width*3:(y+1)*width*3]
+    scanlines = b"".join(b"\0" + data[y*width*3:(y+1)*width*3]
                          for y in range(height))
     path.write_bytes(
-        b"\\x89PNG\\r\\n\\x1a\\n" +
+        b"\x89PNG\r\n\x1a\n" +
         chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)) +
         chunk(b"IDAT", zlib.compress(scanlines, 6)) +
         chunk(b"IEND", b""))
@@ -145,7 +145,7 @@ def main(check):
             sheet.extend(row(diff,y))
     write_png(ROOT/"reference-visual-comparison.png", W*3, H*len(panels), bytes(sheet))
     (ROOT/"reference-visual-comparison.json").write_text(
-        json.dumps(report, indent=2) + "\\n")
+        json.dumps(report, indent=2) + "\n")
     print("REFERENCE_VISUAL_COMPARISON", json.dumps(report, sort_keys=True))
     if check and report["regressions"]:
         raise SystemExit("Comparison regression(s): " + "; ".join(report["regressions"]))
