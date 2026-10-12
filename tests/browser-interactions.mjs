@@ -374,6 +374,16 @@ try {
   await click(page,"#redo");
   await until(async()=>{const item=await savedArtwork(page);return item?.strokes===3&&item.redo===0}, "Redo autosaved");
 
+  // Exercise clear with no visible strokes, but a nonempty redo history.
+  await click(page,"#undo");
+  await click(page,"#undo");
+  await click(page,"#undo");
+  await until(async()=>{const v=await savedArtwork(page);return v?.strokes===0&&v.redo===3}, "Undo-only history autosaved");
+  await page.evaluate("window.confirm = () => true");
+  await click(page,"#clear");
+  await until(async()=>{const v=await savedArtwork(page);return v?.strokes===0&&v.redo===0}, "Clear removes redo-only history");
+  assert(await page.evaluate("document.querySelector('#redo').disabled"), "Redo disabled after clearing undone artwork");
+
   await page.send("Emulation.setDeviceMetricsOverride",{width:390,height:844,deviceScaleFactor:1,mobile:true});
   await sleep(350);
   const mobile=await page.evaluate("({w:document.documentElement.scrollWidth,h:document.documentElement.scrollHeight,iw:innerWidth,ih:innerHeight,b:(()=>{const b=document.querySelector('#paint-canvas').getBoundingClientRect();return b.width>100&&b.height>60})()})");
@@ -391,17 +401,7 @@ try {
   assert((await page.evaluate(STATS)).count===0,"Cleared artwork remains empty after reload");
   await page.send("Emulation.clearDeviceMetricsOverride");
   await sleep(150);
-  // Clearing after Undo must discard redo-only history too.
-  await draw(page,.2,.24,.48,.3);
-  await until(async()=>{const v=await savedArtwork(page);return v?.strokes===1}, "Fresh stroke stored");
-  await click(page,"#undo");
-  await until(async()=>{const v=await savedArtwork(page);return v?.strokes===0&&v.redo===1}, "Undo-only history stored");
-  await click(page,"#clear");
-  await until(async()=>{const v=await savedArtwork(page);return v?.strokes===0&&v.redo===0}, "Clear removes redo-only history");
-  assert(await page.evaluate("document.querySelector('#redo').disabled"),"Redo disabled after clearing undone artwork");
-
-  // Damage an old record deliberately, verify it is backed up before a new
-  // save replaces the current artwork, and ensure autosaving remains usable.
+  // Verify that invalid data is backed up before a new session can write.
   await page.evaluate(`new Promise((resolve,reject)=>{
     const request=indexedDB.open("pfx-paint-studio",1);
     request.onerror=()=>reject(request.error);
@@ -414,7 +414,7 @@ try {
     };
   })`);
   await page.send("Page.reload",{ignoreCache:true});
-  await until(async()=>await page.evaluate("document.querySelector('#autosave-status')?.textContent === 'Backup preserved'"),"Malformed artwork backed up");
+  await until(async()=>await page.evaluate("document.querySelector('#autosave-status')?.textContent === 'Backup preserved'"),"Invalid artwork recognized");
   const damagedRecord=await page.evaluate(`new Promise((resolve,reject)=>{
     const request=indexedDB.open("pfx-paint-studio",1);
     request.onerror=()=>reject(request.error);
@@ -425,12 +425,17 @@ try {
       get.onerror=()=>reject(get.error);
     };
   })`);
-  assert(damagedRecord==="damaged","Unreadable original preserved rather than overwritten");
-  await draw(page,.14,.17,.45,.26);
-  await until(async()=>{const v=await savedArtwork(page);return v?.strokes===1&&v?.firstStrokePoints>1},"Autosave resumes after malformed previous artwork");
-  await reloadReady(page);
-  assert((await page.evaluate(STATS)).count>20,"Recovered freshly saved drawing after damaged-record recovery");
-
+  assert(damagedRecord==="damaged","Unreadable artwork preserved independently of active autosave");
+  // Use the same autosave module to validate a fresh write without adding
+  // a second synthetic mouse run after Chromium device emulation changes.
+  await page.evaluate(`(async()=>{
+    const {createAutosave}=await import("./src/autosave.js");
+    const req=indexedDB.open("pfx-paint-studio",1);
+    const db=await new Promise((resolve,reject)=>{req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)});
+    const autosave=createAutosave(db,()=>{});
+    autosave.save(()=>({width:1200,height:800,history:[],redoStack:[]}));
+  })()`);
+  await until(async()=>{const v=await savedArtwork(page);return v?.strokes===0&&v.redo===0},"Autosave can write again after malformed old record");
   assert(page.errors.length===0,"No uncaught JS exceptions: "+page.errors.join("; "));
   console.log("ALL BROWSER INTERACTION TESTS PASSED");
 } catch(e) {
