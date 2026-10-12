@@ -131,7 +131,7 @@ async function verifyCheckpoint() {
   replica.surface.free();
 
   const started = performance.now();
-  s.autosave.save(() => e.snapshot());
+  s.autosave.save(() => e.snapshotForAutosave());
   let saved;
   const { loadArtwork } = await import("./src/autosave.js");
   for (let tries = 0; tries < 150; tries++) {
@@ -146,6 +146,8 @@ async function verifyCheckpoint() {
     equalUndoRedo: baseline === checksumUndoRedo,
     equalReplay: baseline === checksumReplay,
     persisted: saved?.history.length === s.next && s.status.at(-1) === "Saved locally",
+    cachedCheckpoints: saved?.tileCache?.checkpoints?.length || 0,
+    cacheBytes: saved?.tileCache?.checkpoints?.reduce((total, entry) => total + entry.bytes.byteLength, 0) || 0,
     points, snapshotPoints: snapshot.history.reduce((total, stroke) =>
       total + stroke.points.length, 0),
     undoMs: undo, redoMs: redo, restoreMs,
@@ -163,7 +165,7 @@ async function verifyAfterReload() {
   canvas.width = 1200; canvas.height = 800;
   const engine = await PaintingEngine.create(canvas, () => {});
   const start = performance.now();
-  engine.restoreArtwork(saved);
+  const usedCache = await engine.restoreSavedArtwork(saved);
   const elapsed = performance.now() - start;
   const bytes = canvas.getContext("2d").getImageData(0, 0, 1200, 800).data;
   const digest = await crypto.subtle.digest("SHA-256", bytes);
@@ -176,7 +178,7 @@ async function verifyAfterReload() {
   return {
     savedStrokes: saved.history.length,
     savedPoints: saved.history.reduce((sum, s) => sum + s.points.length, 0),
-    digest: checksum, replayMs: elapsed
+    digest: checksum, replayMs: elapsed, usedCache
   };
 }
 
@@ -233,13 +235,16 @@ async function runBrowser(name, browserType) {
         check(checkResult.equalUndoRedo && checkResult.equalReplay,
           name + ": pixel checksum changed at " + mark);
         check(checkResult.persisted && checkResult.points === checkResult.snapshotPoints &&
-          checkResult.saveFailures === 0, name + ": local autosave lost data at " + mark);
+          checkResult.saveFailures === 0 && checkResult.cachedCheckpoints > 0,
+          name + ": cached autosave lost data at " + mark);
         entry.integrity.push({
           strokes: mark, pixelsIdentical: true, persisted: true,
           undoMs: percentiles(checkResult.undoMs),
           redoMs: percentiles(checkResult.redoMs),
           restoreMs: checkResult.restoreMs,
           saveElapsedMs: checkResult.saveElapsedMs,
+          cachedCheckpoints: checkResult.cachedCheckpoints,
+          cacheBytes: checkResult.cacheBytes,
           points: checkResult.points
         });
         lastDigest = checkResult.originalDigest;
@@ -255,9 +260,10 @@ async function runBrowser(name, browserType) {
     );
     const after = await page.evaluate(verifyAfterReload);
     check(after.savedStrokes === TOTAL && after.savedPoints === lastPoints &&
-      after.digest === lastDigest, name + ": persisted artwork differs after reload");
+      after.digest === lastDigest && after.usedCache,
+      name + ": cached restore differed or fell back after reload");
     entry.reload = { strokes: after.savedStrokes, points: after.savedPoints,
-      checksumIdentical: true, replayMs: after.replayMs };
+      checksumIdentical: true, usedCache: after.usedCache, replayMs: after.replayMs };
     check(errors.length === 0, name + ": page errors: " + errors.join("; "));
     entry.uncaughtErrors = 0;
     entry.status = "passed";
