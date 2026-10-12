@@ -111,7 +111,11 @@ export class PaintingEngine {
     const y = Math.max(-margin, Math.min(this.canvas.height + margin,
       (event.clientY - rect.top) * this.canvas.height / rect.height));
     const isPen = event.pointerType === "pen";
-    const pressure = isPen && event.pressure > 0 ? event.pressure : 1;
+    // Pen lift-off is reported with pressure 0; do not turn it into a
+    // full-pressure dab. Mouse and touch still use a steady default.
+    const pressure = isPen && Number.isFinite(event.pressure)
+      ? Math.max(0, Math.min(1, event.pressure))
+      : 1;
     return {
       x, y, pressure,
       xtilt: isPen ? Math.sin((event.tiltX || 0) * Math.PI / 180) : 0,

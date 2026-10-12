@@ -235,6 +235,67 @@ try {
     return [a.x,a.y,b.x,b.y];
   })()`);
   assert(outside.join(",")==="-64,864,1264,-64","Off-canvas pointer capture stays inside safe tile margin");
+
+  // A pen-up event reports pressure 0. Verify that the final input retains
+  // that value and that native Hokusai replay remains pixel-exact.
+  const penLift = await page.evaluate(`(async () => {
+    const { PaintingEngine } = await import("./src/engine.js");
+    const canvas = document.createElement("canvas");
+    canvas.width = 320; canvas.height = 200;
+    const paint = await PaintingEngine.create(canvas, () => {});
+    const rect = { left:0, top:0, width:320, height:200 };
+    const pen = (x,y,pressure,time) => ({
+      clientX:x, clientY:y, pressure, timeStamp:time, pointerType:"pen",
+      tiltX:12, tiltY:-8
+    });
+    const liftPressure = paint.sample(pen(180,110,0,1030),rect).pressure;
+    const mousePressure = paint.sample({ ...pen(180,110,0,1030), pointerType:"mouse" },rect).pressure;
+    paint.configure({ brushId:"calligraphy" });
+    paint.begin(pen(30,65,0.25,1000),rect);
+    paint.add(pen(110,85,0.8,1010),rect);
+    paint.add(pen(180,110,0.35,1020),rect);
+    paint.add(pen(180,110,0,1030),rect);
+    paint.end();
+    const points = paint.history[0].points;
+    const lastPressure = points.at(-1).pressure;
+    const hasPressureVariation = points.some(p => p.pressure > 0.5) &&
+      points.some(p => p.pressure > 0 && p.pressure < 0.5);
+    const fingerprint = (engine) => {
+      engine.renderNow();
+      const data = engine.context.getImageData(0,0,320,200).data;
+      let hash = 2166136261, ink = false;
+      for(let i=0;i<data.length;i+=4) {
+        if(data[i]<240 || data[i+1]<240 || data[i+2]<240) ink = true;
+        hash = Math.imul(hash ^ data[i],16777619) >>> 0;
+        hash = Math.imul(hash ^ data[i+1],16777619) >>> 0;
+        hash = Math.imul(hash ^ data[i+2],16777619) >>> 0;
+      }
+      return { hash, ink };
+    };
+    const before = fingerprint(paint);
+    const saved = paint.snapshot();
+    paint.undo(); paint.redo();
+    const redone = fingerprint(paint);
+    const cloneCanvas = document.createElement("canvas");
+    cloneCanvas.width = 320; cloneCanvas.height = 200;
+    const clone = new PaintingEngine(cloneCanvas,paint.wasm,paint.brushSources,()=>{});
+    clone.restoreArtwork(saved);
+    const recovered = fingerprint(clone);
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    for(const engine of [paint,clone]) {
+      engine.releaseCheckpoints(); engine.active.free(); engine.surface.free();
+    }
+    return { liftPressure, mousePressure, lastPressure, hasPressureVariation,
+      ink:before.ink, exactRedo:before.hash===redone.hash,
+      exactRestore:before.hash===recovered.hash };
+  })()`);
+  assert(penLift.liftPressure===0 && penLift.lastPressure===0,
+    "Pen lift-off retains zero pressure instead of producing a full-pressure dab");
+  assert(penLift.mousePressure===1 && penLift.hasPressureVariation && penLift.ink,
+    "Pen pressure dynamics stay intact and mouse pressure remains unchanged");
+  assert(penLift.exactRedo && penLift.exactRestore,
+    "Zero-pressure pen stroke restores pixel-exactly after undo/redo and reload");
+
   const dirtyCheck = await page.evaluate(`(async () => {
     const api = await import("./pkg/hokusai_wasm.js");
     const wasm = await api.default();
