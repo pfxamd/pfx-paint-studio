@@ -124,7 +124,7 @@ jobs:
             sleep 1
           done
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
-          node tests/browser-input-latency.mjs "$CHROME"
+          PFX_LATENCY_STRESS=1 node tests/browser-input-latency.mjs "$CHROME"
 
       - name: Install headless Firefox for Linux browser checks
         run: |
