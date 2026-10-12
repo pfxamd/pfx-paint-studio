@@ -175,7 +175,7 @@ jobs:
           python3 -m py_compile tests/compare-reference-artwork.py
           python3 tests/compare-reference-artwork.py --self-test
           for brush in pencil dry_brush pastel watercolor_glazing; do
-            for scenario in baseline reverse zigzag; do
+            for scenario in baseline reverse zigzag primed; do
               suffix=""
               if [[ "$scenario" != baseline ]]; then suffix="_$scenario"; fi
               /tmp/pfx-ref "public/brushes/$brush.myb" "test-artifacts/upstream_$brush$suffix.ppm" "$scenario"
