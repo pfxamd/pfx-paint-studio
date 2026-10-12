@@ -74,10 +74,20 @@ async function exercise() {
       if (await hash(restored) !== extended || await hash(full) !== extended)
         throw Error(preset + ": future texture diverged after reopening");
 
+      original.undo();
+      original.redo();
       restored.undo();
       restored.redo();
-      if (await hash(restored) !== extended)
-        throw Error(preset + ": undo/redo changed restored brush texture");
+      full.undo();
+      full.redo();
+      const afterOriginal = await hash(original);
+      const afterCached = await hash(restored);
+      const afterFull = await hash(full);
+      if (afterCached !== extended || afterOriginal !== extended || afterFull !== extended)
+        throw Error(preset + ": redo differs (live " + (afterOriginal===extended) +
+          ", compressed " + (afterCached===extended) +
+          ", replay " + (afterFull===extended) +
+          ", checkpoints " + restored.checkpoints.map(p=>p.count).join(",") + ")");
 
       // Old cache payloads lack RNG bytes. Reject their optimization
       // and replay the authoritative strokes rather than using wrong state.
