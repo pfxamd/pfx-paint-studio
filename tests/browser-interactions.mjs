@@ -186,6 +186,7 @@ try {
   assert((await page.evaluate("document.querySelector('#zoom-label').textContent"))==="100%", "Canvas initially fits viewport");
   await click(page, "#zoom-in");
   assert((await page.evaluate("document.querySelector('#zoom-label').textContent"))==="125%", "Zoom in button increases view to 125%");
+  await mouse(page,"mouseMoved",px,py);
   const cursorSizeAtZoom = await page.evaluate("parseFloat(getComputedStyle(document.querySelector('#paint-pointer .cursor-ring')).width)");
   assert(cursorSizeAtZoom>ringBefore*1.2 && cursorSizeAtZoom<ringBefore*1.3,"Cursor diameter tracks artwork zoom");
   const beforePan = await page.evaluate("document.querySelector('#artboard-frame').style.transform");

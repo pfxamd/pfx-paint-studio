@@ -59,6 +59,7 @@ export class PaintCursor {
   }
 
   hide() {
+    this.lastPointer = null;
     this.wasVisible = false;
     this.overlay.classList.remove("visible");
     this.stage.classList.remove("cursor-active");
