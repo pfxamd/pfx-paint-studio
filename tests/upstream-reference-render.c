@@ -66,7 +66,7 @@ static int save_ppm(MyPaintTiledSurface *s, const char *path) {
   return fclose(fp) == 0;
 }
 int main(int argc, char **argv) {
-  if (argc != 3 && argc != 4) { fprintf(stderr,"Usage: ref BRUSH.myb out.ppm [baseline|reverse|zigzag]\n"); return 2; }
+  if (argc != 3 && argc != 4) { fprintf(stderr,"Usage: ref BRUSH.myb out.ppm [baseline|reverse|zigzag|primed]\n"); return 2; }
   char *json = read_file(argv[1]);
   if (!json) return 3;
   MyPaintBrush *brush = mypaint_brush_new();
@@ -85,9 +85,16 @@ int main(int argc, char **argv) {
   const char *scenario = argc == 4 ? argv[3] : "baseline";
   int reverse = strcmp(scenario, "reverse") == 0;
   int zigzag = strcmp(scenario, "zigzag") == 0;
-  if (!reverse && !zigzag && strcmp(scenario, "baseline") != 0) {
+  int primed = strcmp(scenario, "primed") == 0;
+  if (!reverse && !zigzag && !primed && strcmp(scenario, "baseline") != 0) {
     fprintf(stderr, "Unknown comparison scenario: %s\n", scenario);
     return 2;
+  }
+  // Two zero-pressure hover samples initialize upstream slow-tracking
+  // near the real pointer position, without fabricating a painted stroke.
+  if (primed) {
+    for (int k=0; k<2; k++)
+      mypaint_brush_stroke_to(brush,surface,24,90,0,0,0,0.09);
   }
   float x=24, y=90, p=0.2f;
   for (int i=0; i<=40; i++) {
