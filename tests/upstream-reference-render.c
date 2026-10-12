@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 enum { W = 320, H = 180 };
 static float clamp01(float v) { return fmaxf(0.0f, fminf(1.0f, v)); }
@@ -65,7 +66,7 @@ static int save_ppm(MyPaintTiledSurface *s, const char *path) {
   return fclose(fp) == 0;
 }
 int main(int argc, char **argv) {
-  if (argc != 3) { fprintf(stderr,"Usage: ref BRUSH.myb out.ppm\n"); return 2; }
+  if (argc != 3 && argc != 4) { fprintf(stderr,"Usage: ref BRUSH.myb out.ppm [baseline|reverse|zigzag]\n"); return 2; }
   char *json = read_file(argv[1]);
   if (!json) return 3;
   MyPaintBrush *brush = mypaint_brush_new();
@@ -81,11 +82,20 @@ int main(int argc, char **argv) {
   MyPaintSurface *surface = mypaint_fixed_tiled_surface_interface(fixed);
   clear_surface((MyPaintTiledSurface*)surface);
   mypaint_surface_begin_atomic(surface);
+  const char *scenario = argc == 4 ? argv[3] : "baseline";
+  int reverse = strcmp(scenario, "reverse") == 0;
+  int zigzag = strcmp(scenario, "zigzag") == 0;
+  if (!reverse && !zigzag && strcmp(scenario, "baseline") != 0) {
+    fprintf(stderr, "Unknown comparison scenario: %s\n", scenario);
+    return 2;
+  }
   float x=24, y=90, p=0.2f;
   for (int i=0; i<=40; i++) {
-    x = 24.0f + i*6.0f;
-    y = 90.0f + 12.0f*sinf(i*0.25f);
-    p = clamp01(0.25f + 0.6f*fabsf(sinf(i*0.09f)));
+    x = reverse ? (float)(280 - i*6) : (float)(24 + i*6);
+    y = (float)(90.0 + (zigzag ? 24.0*sin(i*0.43) : 12.0*sin(i*0.25)));
+    p = clamp01((float)(zigzag
+      ? 0.12 + 0.8*fabs(sin(i*0.19))
+      : 0.25 + 0.6*fabs(sin(i*0.09))));
     mypaint_brush_stroke_to(brush,surface,x,y,p,0,0,i?0.015:0.01);
   }
   for (int i=0;i<8;i++)
