@@ -193,6 +193,21 @@ export class HokusaiCanvas {
         wasm.hokusaicanvas_restoreCheckpoint(this.__wbg_ptr, saved.__wbg_ptr);
     }
     /**
+     * Restore a complete *versioned* tile checkpoint including the brush
+     * random stream. Validate both parts before touching the current canvas.
+     * @param {Uint8Array} tiles
+     * @param {Uint8Array} rng_bytes
+     * @returns {boolean}
+     */
+    restoreTilesWithRng(tiles, rng_bytes) {
+        const ptr0 = passArray8ToWasm0(tiles, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passArray8ToWasm0(rng_bytes, wasm.__wbindgen_malloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.hokusaicanvas_restoreTilesWithRng(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+        return ret !== 0;
+    }
+    /**
      * Install a validated local tile checkpoint, returning false when
      * corrupt/obsolete. The existing history remains the recovery source.
      * @param {Uint8Array} data
@@ -251,6 +266,16 @@ export class HokusaiCheckpoint {
     free() {
         const ptr = this.__destroy_into_raw();
         wasm.__wbg_hokusaicheckpoint_free(ptr, 0);
+    }
+    /**
+     * Preserve RNG continuity alongside the exact tile bytes.
+     * @returns {Uint8Array}
+     */
+    exportRngState() {
+        const ret = wasm.hokusaicheckpoint_exportRngState(this.__wbg_ptr);
+        var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v1;
     }
     /**
      * Export an exact 16-bit tiled surface, not an 8-bit preview image.
