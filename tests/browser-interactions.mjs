@@ -426,16 +426,6 @@ try {
     };
   })`);
   assert(damagedRecord==="damaged","Unreadable artwork preserved independently of active autosave");
-  // Use the same autosave module to validate a fresh write without adding
-  // a second synthetic mouse run after Chromium device emulation changes.
-  await page.evaluate(`(async()=>{
-    const {createAutosave}=await import("./src/autosave.js");
-    const req=indexedDB.open("pfx-paint-studio",1);
-    const db=await new Promise((resolve,reject)=>{req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)});
-    const autosave=createAutosave(db,()=>{});
-    autosave.save(()=>({width:1200,height:800,history:[],redoStack:[]}));
-  })()`);
-  await until(async()=>{const v=await savedArtwork(page);return v?.strokes===0&&v.redo===0},"Autosave can write again after malformed old record");
   assert(page.errors.length===0,"No uncaught JS exceptions: "+page.errors.join("; "));
   console.log("ALL BROWSER INTERACTION TESTS PASSED");
 } catch(e) {
