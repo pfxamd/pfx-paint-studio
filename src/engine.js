@@ -102,8 +102,14 @@ export class PaintingEngine {
   }
 
   sample(event, rect) {
-    const x = (event.clientX - rect.left) * this.canvas.width / rect.width;
-    const y = (event.clientY - rect.top) * this.canvas.height / rect.height;
+    // Captured pointers may travel far beyond the artboard. Bound the
+    // stroke simulation to one tile outside it, so Hokusai does not allocate
+    // invisible off-canvas tiles when the mouse leaves the browser window.
+    const margin = 64;
+    const x = Math.max(-margin, Math.min(this.canvas.width + margin,
+      (event.clientX - rect.left) * this.canvas.width / rect.width));
+    const y = Math.max(-margin, Math.min(this.canvas.height + margin,
+      (event.clientY - rect.top) * this.canvas.height / rect.height));
     const isPen = event.pointerType === "pen";
     const pressure = isPen && event.pressure > 0 ? event.pressure : 1;
     return {
