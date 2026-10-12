@@ -93,8 +93,10 @@ export class HokusaiCanvas {
         return HokusaiCheckpoint.__wrap(ret);
     }
     /**
-     * Drop all painted tiles and reset stroke state. Cheaper and safer than
-     * reconstructing the canvas object on the JS side.
+     * Drop all painted tiles and restore the initial RNG stream.
+     * Unlike reset_stroke(), a full clear is used before deterministic
+     * replay from an empty canvas. Preserving the advanced RNG here
+     * changes dry/textured brush dabs on undo and redo.
      */
     clear() {
         wasm.hokusaicanvas_clear(this.__wbg_ptr);
