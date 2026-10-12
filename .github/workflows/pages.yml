@@ -37,11 +37,17 @@ jobs:
         with:
           version: latest
 
+      - name: Prepare Node 22 for browser interaction tests
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - name: Check local JavaScript
         run: |
           node --check src/app.js
           node --check src/engine.js
           node --check sw.js
+          node --check tests/browser-interactions.mjs
 
       - name: Test Hokusai brush engine
         run: cargo test --manifest-path vendor/hokusai/Cargo.toml -p hokusai-core -p hokusai-brush -p hokusai-tile-mem
@@ -69,7 +75,7 @@ jobs:
             exit 1
           fi
 
-      - name: Browser boot smoke test
+      - name: Test real browser drawing and exported PNG
         shell: bash
         run: |
           set -euo pipefail
@@ -81,13 +87,15 @@ jobs:
             sleep 1
           done
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
-          timeout 45s "$CHROME" --headless --no-sandbox --disable-dev-shm-usage --disable-gpu --virtual-time-budget=12000 --dump-dom http://127.0.0.1:8732/ > /tmp/pfx-rendered.html 2>/tmp/pfx-chrome.log
-          if ! grep -Fq "Ready to paint — all drawing stays on this device" /tmp/pfx-rendered.html; then
-            echo "Browser never reached engine ready state"
-            tail -n 50 /tmp/pfx-chrome.log || true
-            exit 1
-          fi
-          echo "Real browser loaded Hokusai WASM and reached ready state"
+          node tests/browser-interactions.mjs "$CHROME"
+
+      - name: Retain real-browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pfx-paint-browser-tests
+          path: test-artifacts/*.png
+          if-no-files-found: ignore
 
       - name: Keep built browser runtime in this repository
         shell: bash
