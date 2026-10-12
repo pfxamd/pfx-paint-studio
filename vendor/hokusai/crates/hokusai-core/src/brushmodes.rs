@@ -6,9 +6,9 @@
 //! - Dab position `(x, y)` is in world-pixel space (sub-pixel f32).
 //! - Dab `color` is straight-alpha linear sRGB; we premultiply at blend time.
 //!
-//! Implements libmypaint's `BlendMode_Normal_and_Eraser` plus the
-//! `Colorize` / `Posterize` / `LockAlpha` overlays. The spectral `paint`
-//! pigment-mixing mode is still deferred.
+//! Implements libmypaint's `BlendMode_Normal_and_Eraser`,
+//! `Colorize` / `Posterize` / `LockAlpha` overlays and the spectral `paint`
+//! pigment-mixing paths.
 
 #![allow(clippy::needless_range_loop, clippy::too_many_arguments)]
 
