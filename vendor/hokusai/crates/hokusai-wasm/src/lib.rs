@@ -123,6 +123,31 @@ impl SrgbCache {
     }
 }
 
+#[cfg(test)]
+mod srgb_cache_tests {
+    use super::*;
+
+    #[test]
+    fn cached_output_is_byte_exact_for_repeated_and_colliding_channels() {
+        let mut cache = SrgbCache::new();
+        // Exercise channel/alpha combinations across the fixed15 gamut,
+        // including repeated inputs and hash-slot collisions.
+        for n in 0..100_000u32 {
+            let a = (n.wrapping_mul(197) % 32_769) as f32 / 32_768.0;
+            let premul = (n.wrapping_mul(311) % 32_769) as f32 / 32_768.0;
+            let value = if a == 0.0 {
+                1.0
+            } else {
+                let channel = premul.min(a);
+                (channel / a) * a + (1.0 - a)
+            };
+            let expected = (linear_to_srgb(value).clamp(0.0, 1.0) * 255.0).round() as u8;
+            assert_eq!(cache.encode(value), expected);
+            assert_eq!(cache.encode(value), expected);
+        }
+    }
+}
+
 /// A drawable canvas. Holds the tiled surface, an active [`BrushState`],
 /// and the RGBA8 output buffer reused across `pixels()` calls.
 #[wasm_bindgen]
