@@ -10,7 +10,7 @@ Features: Hokusai-powered real brushes, pen pressure and tilt, colours and palet
 - Hokusai core, `.myb` parser, in-memory tiled surface, and WASM bindings: source copied into `vendor/hokusai/`.
 - Four preset `.myb` brushes are stored in `public/brushes/`. Original PFx logo is `public/brand/Red-pfx.svg`.
 - All runtime assets — styles, JS, compiled WASM, brushes and logo — are served from this repository's GitHub Pages site. No CDN, externally hosted font, remote API or image uploads.
-- Drawing data stays in local browser memory, not on a server. This first version does not persist artwork between page reloads. Export a PNG before leaving.
+- Completed strokes, undo/redo and clearing are saved automatically in this browser using IndexedDB, then restored when the studio opens again. The artwork and undo history stay on the device: there is no server upload. Each browser/profile has independent local artwork. Saving may be unavailable in restricted/private browser settings; check the local-save indicator and use PNG export as a separate copy. A sudden browser crash while a stroke is still in progress may lose that unfinished stroke.
 - Undo/redo reconstructs the canvas by replaying recorded strokes. This is correct but may require optimization for very large artwork histories.
 - A service worker caches every runtime asset after first successful visit, permitting offline revisits where supported.
 

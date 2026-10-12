@@ -214,6 +214,24 @@ export class PaintingEngine {
     return "#" + channelHex(data[0]) + channelHex(data[1]) + channelHex(data[2]);
   }
 
+  snapshot() {
+    // Clone completed strokes before asynchronous persistence begins.
+    return {
+      width: this.canvas.width,
+      height: this.canvas.height,
+      history: structuredClone(this.history),
+      redoStack: structuredClone(this.redoStack)
+    };
+  }
+
+  restoreArtwork(saved) {
+    if (this.current) throw new Error("Cannot restore during a stroke");
+    this.history = saved.history;
+    this.redoStack = saved.redoStack;
+    this.replay();
+    this.renderNow();
+  }
+
   get canUndo() { return this.history.length > 0; }
   get canRedo() { return this.redoStack.length > 0; }
 }

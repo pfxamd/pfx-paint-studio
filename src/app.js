@@ -1,9 +1,11 @@
 import { PaintingEngine } from "./engine.js";
+import { openArtworkDatabase, loadArtwork, createAutosave } from "./autosave.js";
 
 const $ = (id) => document.getElementById(id);
 const canvas = $("paint-canvas");
 const frame = $("artboard-frame");
 const status = $("status");
+const autosaveStatus = $("autosave-status");
 const loading = $("loading");
 const indicator = $("engine-indicator");
 const toast = $("toast");
@@ -15,6 +17,7 @@ const toolButtons = Array.from(document.querySelectorAll("[data-tool]"));
 const brushButtons = Array.from(document.querySelectorAll("[data-brush]"));
 const swatches = Array.from(document.querySelectorAll("[data-color]"));
 let engine = null;
+let autosave = null;
 let tool = "brush";
 let activePointer = null;
 let toastTimer = null;
@@ -26,9 +29,11 @@ function message(text) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toast.classList.remove("show"), 2400);
 }
-function updateHistory() {
+function updateHistory(changed = false) {
   undo.disabled = !engine?.canUndo;
   redo.disabled = !engine?.canRedo;
+  // Only completed strokes, undo/redo and clear change the saved artwork.
+  if (changed && engine && autosave) autosave.save(engine.snapshot());
 }
 function useTool(name) {
   if (!["brush", "eraser", "picker"].includes(name)) return;
@@ -157,13 +162,34 @@ window.addEventListener("keydown", (event) => {
 async function start() {
   try {
     status.textContent = "Loading local Hokusai engine";
-    engine = await PaintingEngine.create(canvas, updateHistory);
+    const readyEngine = await PaintingEngine.create(canvas, () => updateHistory(true));
+    let recovered = false;
+    try {
+      const database = await openArtworkDatabase();
+      const saved = await loadArtwork(database, canvas.width, canvas.height);
+      if (saved) {
+        readyEngine.restoreArtwork(saved);
+        recovered = saved.history.length > 0 || saved.redoStack.length > 0;
+      }
+      autosave = createAutosave(database, (value) => {
+        autosaveStatus.textContent = value;
+        if (value === "Save failed") message("Autosave failed — export a PNG");
+      });
+      autosaveStatus.textContent = recovered ? "Restored locally" : "Local save ready";
+    } catch (error) {
+      console.warn("PFx Paint autosave unavailable:", error);
+      autosaveStatus.textContent = "Autosave unavailable";
+      message("Local save unavailable — export PNG");
+    }
+    engine = readyEngine;
     indicator.classList.add("ready");
     document.querySelector(".engine-pulse").classList.add("ready");
     loading.classList.add("hidden");
     updateHistory();
     useTool("brush");
-    status.textContent = "Ready to paint — all drawing stays on this device";
+    status.textContent = recovered
+      ? "Previous artwork restored — saved on this device"
+      : "Ready to paint — all drawing stays on this device";
     if ("serviceWorker" in navigator && location.protocol === "https:") {
       navigator.serviceWorker.register("./sw.js").catch(() => {});
     }
