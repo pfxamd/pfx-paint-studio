@@ -54,6 +54,7 @@ jobs:
           node --check sw.js
           node --check tests/browser-interactions.mjs
           node --check tests/browser-performance.mjs
+          node --check tests/browser-endurance.mjs
           node --check tests/firefox-interactions.mjs
 
       - name: Test Hokusai brush engine
@@ -143,6 +144,20 @@ jobs:
           node tests/browser-performance.mjs "$CHROME"
           PFX_CPU_SLOWDOWN=3 PFX_BENCH_STROKES=180 node tests/browser-performance.mjs "$CHROME"
 
+      - name: Verify 500 and 1000 stroke endurance
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 8732 --directory _site >/tmp/pfx-endurance-http.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" || true' EXIT
+          for i in 1 2 3 4 5; do
+            if curl -fsS http://127.0.0.1:8732/ >/dev/null; then break; fi
+            sleep 1
+          done
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          node tests/browser-endurance.mjs "$CHROME"
+
       - name: Retain real-browser screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -152,6 +167,7 @@ jobs:
             test-artifacts/*.png
             test-artifacts/performance*.json
             test-artifacts/firefox-results.json
+            test-artifacts/endurance-report.json
           if-no-files-found: ignore
 
       - name: Keep built browser runtime in this repository
