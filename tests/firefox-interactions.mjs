@@ -175,6 +175,14 @@ try {
   assert(bytes.subarray(0, 8).equals(Buffer.from("89504e470d0a1a0a", "hex")), "Firefox downloads valid PNG");
   assert(bytes.readUInt32BE(16) === 1200 && bytes.readUInt32BE(20) === 800, "PNG retains full artwork resolution");
 
+  // The autosave debounce is asynchronous. Confirm IndexedDB has the
+  // completed paint + eraser strokes before testing reload fidelity.
+  await waitFor(async () => {
+    const saved = await savedArtwork(page);
+    return saved?.history?.length === 2;
+  }, "Completed artwork persisted to IndexedDB before reload");
+  await page.waitForFunction(() => document.querySelector("#autosave-status")?.textContent === "Saved locally",
+    { timeout: 30000 });
   const beforeReload = await ink(page);
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => document.querySelector("#status")?.textContent.includes("restored"), { timeout: 30000 });
