@@ -343,6 +343,46 @@ try {
   await page.send("Page.reload",{ignoreCache:true});
   await until(async()=>(await page.evaluate("document.querySelector('#status')?.textContent || ''")).includes("Ready to paint"),"Empty artwork reopened",30000);
   assert((await page.evaluate(STATS)).count===0,"Cleared artwork remains empty after reload");
+  // Clearing after Undo must discard redo-only history too.
+  await draw(page,.2,.24,.48,.3);
+  await until(async()=>{const v=await savedArtwork(page);return v?.strokes===1}, "Fresh stroke stored");
+  await click(page,"#undo");
+  await until(async()=>{const v=await savedArtwork(page);return v?.strokes===0&&v.redo===1}, "Undo-only history stored");
+  await click(page,"#clear");
+  await until(async()=>{const v=await savedArtwork(page);return v?.strokes===0&&v.redo===0}, "Clear removes redo-only history");
+  assert(await page.evaluate("document.querySelector('#redo').disabled"),"Redo disabled after clearing undone artwork");
+
+  // Damage an old record deliberately, verify it is backed up before a new
+  // save replaces the current artwork, and ensure autosaving remains usable.
+  await page.evaluate(`new Promise((resolve,reject)=>{
+    const request=indexedDB.open("pfx-paint-studio",1);
+    request.onerror=()=>reject(request.error);
+    request.onsuccess=()=>{
+      const db=request.result;
+      const tx=db.transaction("artwork","readwrite");
+      tx.objectStore("artwork").put({schemaVersion:1,width:1200,height:800,history:"damaged",redoStack:[]}, "current");
+      tx.oncomplete=()=>{db.close();resolve(true)};
+      tx.onerror=()=>reject(tx.error);
+    };
+  })`);
+  await page.send("Page.reload",{ignoreCache:true});
+  await until(async()=>await page.evaluate("document.querySelector('#autosave-status')?.textContent === 'Backup preserved'"),"Malformed artwork backed up");
+  const damagedRecord=await page.evaluate(`new Promise((resolve,reject)=>{
+    const request=indexedDB.open("pfx-paint-studio",1);
+    request.onerror=()=>reject(request.error);
+    request.onsuccess=()=>{
+      const db=request.result,tx=db.transaction("artwork","readonly");
+      const get=tx.objectStore("artwork").get("unreadable-backup");
+      get.onsuccess=()=>{const value=get.result;db.close();resolve(value?.history || null)};
+      get.onerror=()=>reject(get.error);
+    };
+  })`);
+  assert(damagedRecord==="damaged","Unreadable original preserved rather than overwritten");
+  await draw(page,.14,.17,.45,.26);
+  await until(async()=>{const v=await savedArtwork(page);return v?.strokes===1&&v?.firstStrokePoints>1},"Autosave resumes after malformed previous artwork");
+  await reloadReady(page);
+  assert((await page.evaluate(STATS)).count>20,"Recovered freshly saved drawing after damaged-record recovery");
+
   assert(page.errors.length===0,"No uncaught JS exceptions: "+page.errors.join("; "));
   console.log("ALL BROWSER INTERACTION TESTS PASSED");
 } catch(e) {
