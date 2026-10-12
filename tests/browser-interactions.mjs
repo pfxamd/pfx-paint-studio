@@ -296,6 +296,69 @@ try {
   assert(penLift.exactRedo && penLift.exactRestore,
     "Zero-pressure pen stroke restores pixel-exactly after undo/redo and reload");
 
+ 
+  // Tilt-only pen movements must not be mistaken for duplicate input.
+  // This also checks sub-threshold jitter, pressure-only events and dwell.
+  const tiltInput = await page.evaluate(`(async () => {
+    const { PaintingEngine } = await import("./src/engine.js");
+    const canvas = document.createElement("canvas");
+    canvas.width = 320; canvas.height = 200;
+    const paint = await PaintingEngine.create(canvas, () => {});
+    paint.configure({ brushId: "marker_fat" }); // Uses MyPaint tilt mappings.
+    const rect = { left:0, top:0, width:320, height:200 };
+    const event = (time, changes = {}) => ({
+      clientX:60, clientY:75, pointerType:"pen", pressure:0.65,
+      tiltX:0, tiltY:0, timeStamp:time, ...changes
+    });
+    paint.begin(event(1000),rect);
+    const counts=[paint.current.points.length];
+    for (const e of [
+      event(1002),                             // Duplicate: discard
+      event(1004,{tiltX:35}),                  // X tilt: keep
+      event(1006,{tiltX:35,tiltY:-30}),        // Y tilt: keep
+      event(1008,{tiltX:35.01,tiltY:-30}),     // Tiny tilt jitter: discard
+      event(1012,{tiltX:35,tiltY:-30,pressure:0.74}), // Pressure: keep
+      event(1026,{tiltX:35,tiltY:-30,pressure:0.74})  // Dwell: keep
+    ]) {
+      paint.add(e,rect);
+      counts.push(paint.current.points.length);
+    }
+    const retained=paint.current.points.map(p=>({
+      pressure:p.pressure,xtilt:p.xtilt,ytilt:p.ytilt
+    }));
+    paint.add(event(1042,{clientX:180,clientY:112,pressure:0.74,tiltX:35,tiltY:-30}),rect);
+    paint.add(event(1050,{clientX:250,clientY:140,pressure:0.4,tiltX:-20,tiltY:25}),rect);
+    paint.end();
+    const saved = paint.snapshot();
+    const digest = async engine => {
+      engine.renderNow();
+      const bytes=engine.context.getImageData(0,0,320,200).data;
+      const hash=new Uint8Array(await crypto.subtle.digest("SHA-256",bytes));
+      return Array.from(hash,b=>b.toString(16).padStart(2,"0")).join("");
+    };
+    const before=await digest(paint);
+    paint.undo(); paint.redo();
+    const redone=await digest(paint);
+    const otherCanvas=document.createElement("canvas");
+    otherCanvas.width=320; otherCanvas.height=200;
+    const clone=new PaintingEngine(otherCanvas,paint.wasm,paint.brushSources,()=>{});
+    clone.restoreArtwork(saved);
+    const restored=await digest(clone);
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    for (const engine of [paint,clone]) {
+      engine.releaseCheckpoints(); engine.active.free(); engine.surface.free();
+    }
+    return { counts, retained, replayIdentical:before===redone && before===restored };
+  })()`);
+  assert(tiltInput.counts.join(",")==="1,1,2,3,3,4,5",
+    "Duplicate and tiny-jitter samples are skipped while X/Y tilt, pressure and dwell are retained");
+  assert(tiltInput.retained[1].xtilt>0.55 && tiltInput.retained[2].ytilt< -0.49 &&
+    tiltInput.retained[3].pressure===0.74,
+    "Tilt-only input keeps both original pen axes and independent pressure changes");
+  assert(tiltInput.replayIdentical,
+    "Tilt-sensitive brush pixels match SHA-256 after undo/redo and saved-stroke replay");
+
+
   const dirtyCheck = await page.evaluate(`(async () => {
     const api = await import("./pkg/hokusai_wasm.js");
     const wasm = await api.default();
