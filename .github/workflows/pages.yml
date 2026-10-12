@@ -163,8 +163,8 @@ jobs:
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           node tests/browser-stylus.mjs "$CHROME"
           node tests/browser-brush-quality.mjs "$CHROME"
-      - name: Compare reference libmypaint and Hokusai artwork (experimental PR only)
-        if: github.head_ref == 'experiment/upstream-libmypaint-visual-parity'
+      - name: Compare native MyPaint and Hokusai artwork (manual run only)
+        if: github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           set -euo pipefail
