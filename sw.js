@@ -37,5 +37,15 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(fetch(request).catch(() => caches.match("./index.html")));
     return;
   }
-  event.respondWith(caches.match(request).then((cached) => cached || fetch(request)));
+  // Prefer the current deployment over an older service-worker cache. On
+  // network failure use the complete locally cached asset from installation.
+  event.respondWith(
+    fetch(request).then((response) => {
+      if (response.ok) {
+        const copy = response.clone();
+        event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)));
+      }
+      return response;
+    }).catch(() => caches.match(request))
+  );
 });

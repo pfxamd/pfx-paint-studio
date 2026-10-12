@@ -32,6 +32,9 @@ Vendored Hokusai from https://github.com/reearth/hokusai commit `f7e998173c0e742
 
 Copyright Re:Earth and contributors. Dual licensed MIT OR Apache-2.0. See `vendor/hokusai/LICENSE-MIT` and `vendor/hokusai/LICENSE-APACHE`. MyPaint brush fixture files from the upstream example pack are noted as CC0 upstream. PFx adapts the WASM binding to expose `setEraser`; it does not replace the actual rendering engine.
 
+
+Static runtime files use network-first loading with offline cache fallback. This avoids serving older JavaScript or WASM after an online deployment while preserving offline use. The versioned installation cache is populated atomically before the new service worker becomes active.
+
 ## Start locally without external dependencies
 
 The compiled WASM and JS runtime are checked into `pkg/`. Clone or download this repository, run `python3 -m http.server 8000`, and open `http://localhost:8000/`. It does not contact upstream repositories, package registries or a CDN to draw. Browsers do require an HTTP origin for WASM modules; direct `file://` is unsupported.
