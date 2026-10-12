@@ -66,6 +66,14 @@ impl HokusaiBrush {
             .base_value = if enabled { 1.0 } else { 0.0 };
     }
 
+    /// Keep mouse input responsive without changing the original brush preset.
+    /// Only the slow-tracking base is capped; per-dab brush character remains.
+    #[wasm_bindgen(js_name = setResponsiveMouse)]
+    pub fn set_responsive_mouse(&mut self) {
+        let tracking = self.inner.get_mut(hokusai_core::BrushSetting::SlowTracking);
+        tracking.base_value = tracking.base_value.min(0.6);
+    }
+
     /// Read the brush's designed radius (its `radius_logarithmic` base
     /// value). Useful for UIs that want to offset from the natural size
     /// rather than override it outright.

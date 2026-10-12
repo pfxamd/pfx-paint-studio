@@ -59,6 +59,7 @@ export class PaintingEngine {
     this.color = "#1f242d";
     this.size = 0;
     this.eraser = false;
+    this.inputType = null;
     this.active = null;
     this.history = [];
     this.redoStack = [];
@@ -70,7 +71,7 @@ export class PaintingEngine {
     this.renderNow();
   }
 
-  createBrush(id, color, size, eraser) {
+  createBrush(id, color, size, eraser, responsiveMouse = false) {
     const source = this.brushSources.get(id);
     if (!source) throw new Error("Unknown brush: " + id);
     const brush = new HokusaiBrush(source);
@@ -78,12 +79,14 @@ export class PaintingEngine {
     brush.setColorHsv(h, s, v);
     brush.setRadiusLog(brush.radiusLog() + size);
     brush.setEraser(eraser);
+    if (responsiveMouse) brush.setResponsiveMouse();
     return brush;
   }
 
   refreshBrush() {
     if (this.active) this.active.free();
-    this.active = this.createBrush(this.brushId, this.color, this.size, this.eraser);
+    this.active = this.createBrush(this.brushId, this.color, this.size, this.eraser,
+      this.inputType === "mouse");
   }
 
   configure({ brushId = this.brushId, color = this.color, size = this.size, eraser = this.eraser } = {}) {
@@ -109,6 +112,11 @@ export class PaintingEngine {
 
   begin(event, rect) {
     if (this.current) return;
+    const inputType = event.pointerType || "mouse";
+    if (this.inputType !== inputType) {
+      this.inputType = inputType;
+      this.refreshBrush();
+    }
     this.strokeRect = rect;
     this.surface.resetStroke();
     this.current = {
@@ -116,6 +124,7 @@ export class PaintingEngine {
       color: this.color,
       size: this.size,
       eraser: this.eraser,
+      inputType: this.inputType,
       points: []
     };
     this.add(event, rect);
@@ -209,10 +218,11 @@ export class PaintingEngine {
     const cache = new Map();
     try {
       for (const stroke of this.history) {
-        const key = [stroke.brushId, stroke.color, stroke.size, stroke.eraser].join("|");
+        const key = [stroke.brushId, stroke.color, stroke.size, stroke.eraser, stroke.inputType].join("|");
         let brush = cache.get(key);
         if (!brush) {
-          brush = this.createBrush(stroke.brushId, stroke.color, stroke.size, stroke.eraser);
+          brush = this.createBrush(stroke.brushId, stroke.color, stroke.size, stroke.eraser,
+            stroke.inputType === "mouse");
           cache.set(key, brush);
         }
         this.surface.resetStroke();

@@ -1,15 +1,17 @@
 // Local artwork persistence. No network requests or external dependencies.
+import { BRUSHES } from "./engine.js";
 const DATABASE = "pfx-paint-studio";
 const STORE = "artwork";
 const DOCUMENT = "current";
 const VERSION = 1;
-const BRUSH_IDS = new Set(["charcoal", "calligraphy", "brush", "marker_fat"]);
+const BRUSH_IDS = new Set(BRUSHES.map((brush) => brush.id));
 const COLOR = /^#[0-9a-fA-F]{6}$/;
 
 function validStroke(stroke) {
   return stroke && typeof stroke === "object" &&
     BRUSH_IDS.has(stroke.brushId) && COLOR.test(stroke.color) &&
     Number.isFinite(stroke.size) && typeof stroke.eraser === "boolean" &&
+    (!("inputType" in stroke) || ["mouse", "pen", "touch"].includes(stroke.inputType)) &&
     Array.isArray(stroke.points) && stroke.points.length > 0 &&
     stroke.points.every((point) => point && typeof point === "object" &&
       ["x", "y", "pressure", "xtilt", "ytilt", "time", "dt"]

@@ -15,6 +15,10 @@ Features: 12 bundled Hokusai-powered artist brushes with real rendered previews,
 - Undo/redo reconstructs the canvas by replaying recorded strokes. This is correct but may require optimization for very large artwork histories.
 - A service worker caches every runtime asset after first successful visit, permitting offline revisits where supported.
 
+## Mouse drawing responsiveness
+
+The stroke pipeline preserves native browser coalesced samples, fills large gaps with bounded spatial substeps (without lagging the endpoint), and caches artwork positioning for each stroke. The vendored WASM renderer now tracks dirty 64px tiles and updates only modified pixels during interactive painting. Full-frame rendering remains available for PNG export, colour sampling, undo and clear. A small mouse-only cap on upstream `SlowTracking` reduces excessive brush-follow lag while preserving each brush's per-dab behaviour and original pen dynamics. Existing saved artwork without device-type metadata remains compatible.
+
 ## Brush and runtime assets
 
 Additional eight raw MyPaint brush settings are copied and kept locally, pinned to upstream commit `08da4a48a4b63f2e0f3303942d7c21da8479ea9f`. Their public-domain / CC0 provenance and filenames are documented in `public/brushes/ATTRIBUTION.md`. There are no runtime calls to the upstream source.
