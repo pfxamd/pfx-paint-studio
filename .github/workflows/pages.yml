@@ -121,6 +121,7 @@ jobs:
           done
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           node tests/browser-performance.mjs "$CHROME"
+          PFX_CPU_SLOWDOWN=3 PFX_BENCH_STROKES=180 node tests/browser-performance.mjs "$CHROME"
 
       - name: Retain real-browser screenshots
         if: always()
@@ -129,7 +130,7 @@ jobs:
           name: pfx-paint-browser-tests
           path: |
             test-artifacts/*.png
-            test-artifacts/performance.json
+            test-artifacts/performance*.json
           if-no-files-found: ignore
 
       - name: Keep built browser runtime in this repository
