@@ -180,6 +180,20 @@ try {
   assert(await page.evaluate("document.querySelector('[data-brush=\"watercolor_glazing\"]').classList.contains('selected')"),"New watercolour brush selected");
   await page.evaluate("document.querySelector('[data-brush=\"charcoal\"]').scrollIntoView({block:'nearest'})");
   await click(page, '[data-brush="charcoal"]');
+  const ui = await page.evaluate(() => {
+    const b = selector => { const r=document.querySelector(selector).getBoundingClientRect(); return { x:r.x,y:r.y,w:r.width,h:r.height,right:r.right,bottom:r.bottom }; };
+    return { stage:b(".artboard-stage"), paper:b("#artboard-frame"), sidebar:b(".inspector"),
+      brush:b(".brush-section"), palette:b(".colour-section"), sizing:b(".size-section"),
+      topbar:b(".topbar"), save:b("#save"), doc:b(".workspace-heading"),
+      bg:getComputedStyle(document.querySelector(".workspace")).backgroundImage,
+      noOverflow: document.documentElement.scrollWidth<=innerWidth+2 && document.documentElement.scrollHeight<=innerHeight+2 };
+  });
+  assert(ui.bg.includes("radial-gradient"), "Graphite artist-workspace surface is loaded");
+  assert(ui.paper.x>=ui.stage.x-3 && ui.paper.right<=ui.stage.right+3 &&
+    ui.paper.y>=ui.stage.y-3 && ui.paper.bottom<=ui.stage.bottom+3, "Artboard fits inside workbench without clipping");
+  assert(ui.palette.y>ui.brush.y && ui.sizing.y>ui.palette.y &&
+    ui.sizing.bottom<=ui.sidebar.bottom+2,"Brush, colour and size controls are ordered and visible");
+  assert(ui.noOverflow, "Desktop interface has no page scroll");
   await shot(page,"desktop-before.png");
   const blank=await page.evaluate(STATS);
   assert(blank.count===0,"Blank white canvas");

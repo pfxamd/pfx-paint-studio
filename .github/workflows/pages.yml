@@ -96,6 +96,13 @@ jobs:
           CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
           node tests/browser-interactions.mjs "$CHROME"
 
+      - name: Temporary visual review frame
+        run: |
+          echo "PFX_VISUAL_FRAME_START"
+          base64 -w0 test-artifacts/desktop-before.png
+          echo
+          echo "PFX_VISUAL_FRAME_END"
+
       - name: Retain real-browser screenshots
         if: always()
         uses: actions/upload-artifact@v4
