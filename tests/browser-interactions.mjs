@@ -225,6 +225,16 @@ try {
   assert(ui.palette.y>ui.brush.y && ui.sizing.y>ui.palette.y &&
     ui.sizing.bottom<=ui.sidebar.bottom+2,"Brush, colour and size controls are ordered and visible");
   assert(ui.noOverflow, "Desktop interface has no page scroll");
+  const outside = await page.evaluate(`(async()=>{
+    const { PaintingEngine } = await import("./src/engine.js");
+    const sample = PaintingEngine.prototype.sample;
+    const receiver = {canvas:{width:1200,height:800}};
+    const rect = {left:0,top:0,width:100,height:100};
+    const a = sample.call(receiver,{clientX:-100000,clientY:100000,pointerType:"mouse",timeStamp:42},rect);
+    const b = sample.call(receiver,{clientX:100000,clientY:-100000,pointerType:"mouse",timeStamp:43},rect);
+    return [a.x,a.y,b.x,b.y];
+  })()`);
+  assert(outside.join(",")==="-64,864,1264,-64","Off-canvas pointer capture stays inside safe tile margin");
   const dirtyCheck = await page.evaluate(`(async () => {
     const api = await import("./pkg/hokusai_wasm.js");
     const wasm = await api.default();
