@@ -164,32 +164,6 @@ async function verifyAfterReload() {
   const canvas = document.createElement("canvas");
   canvas.width = 1200; canvas.height = 800;
   const engine = await PaintingEngine.create(canvas, () => {});
-  const cacheMetadata = [];
-  for (const entry of saved.tileCache?.checkpoints || []) {
-    try {
-      const bytes = new Uint8Array(await new Response(
-        new Blob([entry.bytes]).stream().pipeThrough(new DecompressionStream("deflate"))
-      ).arrayBuffer());
-      const dv = new DataView(bytes.buffer);
-      const count = dv.getUint32(16, true);
-      let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity,badChannels=0;
-      const stride=8+64*64*4*2;
-      for(let i=0;i<count;i++) {
-        const off=20+i*stride;
-        const x=dv.getInt32(off,true),y=dv.getInt32(off+4,true);
-        minX=Math.min(minX,x);minY=Math.min(minY,y);
-        maxX=Math.max(maxX,x);maxY=Math.max(maxY,y);
-        for(let k=off+8;k<off+stride;k+=2) {
-          if(dv.getUint16(k,true)>32768) badChannels++;
-        }
-      }
-      cacheMetadata.push({count:entry.count,tiles:count,raw:bytes.length,
-        minX,minY,maxX,maxY,badChannels,
-        validLength:bytes.length===20+count*stride});
-    } catch(error) {
-      cacheMetadata.push({count:entry.count,error:String(error)});
-    }
-  }
   const start = performance.now();
   const usedCache = await engine.restoreSavedArtwork(saved);
   const elapsed = performance.now() - start;
@@ -204,7 +178,8 @@ async function verifyAfterReload() {
   return {
     savedStrokes: saved.history.length,
     savedPoints: saved.history.reduce((sum, s) => sum + s.points.length, 0),
-    digest: checksum, replayMs: elapsed, usedCache, cacheMetadata
+    digest: checksum, replayMs: elapsed, usedCache,
+    cachedCheckpoints: saved.tileCache?.checkpoints?.length || 0
   };
 }
 
@@ -285,9 +260,6 @@ async function runBrowser(name, browserType) {
       { timeout: 90000 }
     );
     const after = await page.evaluate(verifyAfterReload);
-    console.log("HEAVY_RELOAD_DIAGNOSTIC " + name + " " +
-      JSON.stringify({ usedCache:after.usedCache, digestSame:after.digest===lastDigest,
-        cacheMetadata:after.cacheMetadata, replayMs:after.replayMs }));
     check(after.savedStrokes === TOTAL && after.savedPoints === lastPoints &&
       after.digest === lastDigest && after.usedCache,
       name + ": cached restore differed or fell back after reload");
