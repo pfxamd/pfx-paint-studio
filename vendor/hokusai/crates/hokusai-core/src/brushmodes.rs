@@ -470,6 +470,10 @@ fn blend_lock_alpha_paint(
     );
     for &(lx, ly, mask) in entries {
         let mut opa_a = mask * opacity / ONE;
+        // Zero effective opacity is an exact no-op, not a pigment re-mix.
+        if opa_a == 0 {
+            continue;
+        }
         let opa_b = ONE - opa_a;
         let p = &mut tile[ly][lx];
         opa_a *= p[3] as u32;
@@ -636,6 +640,12 @@ fn blend_normal_paint(
     );
     for &(lx, ly, mask) in entries {
         let opa_a = mask * opacity / ONE;
+        // At soft textured edges the nonzero mask can quantize to zero
+        // effective opacity. Do not re-synthesize an unchanged destination
+        // via the approximate RGB/spectral/RGB conversion.
+        if opa_a == 0 {
+            continue;
+        }
         let opa_b = ONE - opa_a;
         let p = &mut tile[ly][lx];
         let (r0, g0, b0, a0) = (p[0] as u32, p[1] as u32, p[2] as u32, p[3] as u32);
@@ -689,6 +699,12 @@ fn blend_normal_and_eraser_paint(
     );
     for &(lx, ly, mask) in entries {
         let opa_a = mask * opacity / ONE;
+        // At soft textured edges the nonzero mask can quantize to zero
+        // effective opacity. Do not re-synthesize an unchanged destination
+        // via the approximate RGB/spectral/RGB conversion.
+        if opa_a == 0 {
+            continue;
+        }
         let opa_b = ONE - opa_a;
         let opa_a2 = opa_a * color_a / ONE;
         let p = &mut tile[ly][lx];
