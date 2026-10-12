@@ -63,6 +63,7 @@ export class PaintingEngine {
     this.history = [];
     this.redoStack = [];
     this.current = null;
+    this.strokeRect = null;
     this.renderQueued = false;
     this.onHistoryChange = onHistoryChange;
     this.refreshBrush();
@@ -108,6 +109,7 @@ export class PaintingEngine {
 
   begin(event, rect) {
     if (this.current) return;
+    this.strokeRect = rect;
     this.surface.resetStroke();
     this.current = {
       brushId: this.brushId,
@@ -119,14 +121,45 @@ export class PaintingEngine {
     this.add(event, rect);
   }
 
-  add(event, rect) {
-    if (!this.current) return;
+  add(event, rect = this.strokeRect) {
+    if (!this.current || !rect) return;
     const point = this.sample(event, rect);
-    const points = this.current.points;
-    const last = points.length ? points[points.length - 1] : null;
-    const dt = last ? Math.max(0.001, Math.min(0.15, (point.time - last.time) / 1000)) : 0.01;
-    this.surface.strokeTo(this.active, point.x, point.y, point.pressure, point.xtilt, point.ytilt, dt);
-    points.push({ ...point, dt });
+    const history = this.current.points;
+    const previous = history.length ? history[history.length - 1] : null;
+    if (!previous) {
+      this.surface.strokeTo(this.active, point.x, point.y, point.pressure, point.xtilt, point.ytilt, 0.01);
+      history.push({ ...point, dt: 0.01 });
+      this.requestRender();
+      return;
+    }
+
+    const distance = Math.hypot(point.x - previous.x, point.y - previous.y);
+    const pressureDelta = Math.abs(point.pressure - previous.pressure);
+    const elapsed = point.time - previous.time;
+    // Eliminate duplicate coalesced samples. Keep pressure changes and brush
+    // dwell events, which matter for pens and textured brush dynamics.
+    if (distance < 0.04 && pressureDelta < 0.005 && elapsed < 12) return;
+
+    // The engine places dabs on segments; bounded spatial substeps keep
+    // speed-dependent strokes stable when the browser coalesces rapid movement.
+    // We never average the endpoint or add trailing smoothing/lag.
+    const steps = Math.min(64, Math.max(1, Math.ceil(distance / 3.5)));
+    const totalDt = Math.max(0.0001, Math.min(0.15, elapsed / 1000));
+    const dt = totalDt / steps;
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      const sample = {
+        x: previous.x + (point.x - previous.x) * t,
+        y: previous.y + (point.y - previous.y) * t,
+        pressure: previous.pressure + (point.pressure - previous.pressure) * t,
+        xtilt: previous.xtilt + (point.xtilt - previous.xtilt) * t,
+        ytilt: previous.ytilt + (point.ytilt - previous.ytilt) * t,
+        time: previous.time + (point.time - previous.time) * t,
+        dt
+      };
+      this.surface.strokeTo(this.active, sample.x, sample.y, sample.pressure, sample.xtilt, sample.ytilt, sample.dt);
+      history.push(sample);
+    }
     this.requestRender();
   }
 
@@ -144,6 +177,7 @@ export class PaintingEngine {
     this.history.push(this.current);
     this.redoStack = [];
     this.current = null;
+    this.strokeRect = null;
     this.refreshBrush();
     this.onHistoryChange?.();
     this.requestRender();
@@ -200,8 +234,20 @@ export class PaintingEngine {
     this.renderQueued = true;
     requestAnimationFrame(() => {
       this.renderQueued = false;
-      this.renderNow();
+      this.renderDirty();
     });
+  }
+
+  renderDirty() {
+    const dirty = this.surface.flushDirtyPixels();
+    if (dirty.length !== 4) return;
+    const [x, y, width, height] = dirty;
+    if (width === 0 || height === 0) return;
+    const ptr = this.surface.pixelsPtr();
+    const len = this.surface.pixelsLen();
+    const pixels = new Uint8ClampedArray(this.wasm.memory.buffer, ptr, len);
+    const image = new ImageData(pixels, this.canvas.width, this.canvas.height);
+    this.context.putImageData(image, 0, 0, x, y, width, height);
   }
 
   renderNow() {

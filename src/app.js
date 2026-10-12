@@ -150,14 +150,22 @@ canvas.addEventListener("pointerdown", (event) => {
 });
 canvas.addEventListener("pointermove", (event) => {
   if (!engine || activePointer !== event.pointerId) return;
-  const rect = canvas.getBoundingClientRect();
+  const rect = engine.strokeRect;
   const subs = typeof event.getCoalescedEvents === "function" ? event.getCoalescedEvents() : [];
-  const samples = subs.length ? subs : [event];
-  for (const sample of samples) engine.add(sample, rect);
+  // Coalesced events may not include the most recent dispatch position.
+  // Preserve their native timestamps and deliver the exact final endpoint.
+  if (subs.length) {
+    for (const sample of subs) engine.add(sample, rect);
+    const last = subs[subs.length - 1];
+    if (last.clientX !== event.clientX || last.clientY !== event.clientY ||
+        last.pressure !== event.pressure) engine.add(event, rect);
+  } else {
+    engine.add(event, rect);
+  }
 });
 function finish(event) {
   if (!engine || activePointer !== event.pointerId) return;
-  if (event.type === "pointerup") engine.add(event, canvas.getBoundingClientRect());
+  if (event.type === "pointerup") engine.add(event, engine.strokeRect);
   engine.end();
   activePointer = null;
   paintingBusy = false;
