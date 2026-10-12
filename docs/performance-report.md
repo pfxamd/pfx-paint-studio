@@ -221,3 +221,62 @@ remain slower in Firefox; this improvement addresses **cached reloads**, not
 the underlying heavy-brush computation. The benchmark uses synthetic
 pressured pen and mouse samples in genuine headless browsers; it does not
 measure physical stylus hardware, screen presentation or total process RAM.
+
+## In-session undo/redo: four-stroke checkpoints (2026-10-12)
+
+Earlier dense watercolor and textured-brush drawings showed **undo/redo spikes**
+when the previous in-memory checkpoint was up to 23 strokes behind the
+history position. This change takes a tiled checkpoint every **4 completed
+strokes** instead of 24, still retaining **at most 3 in-memory checkpoints**.
+It changes neither source stroke data nor saved schema. Cached tile
+checkpoints saved at the old 24-stroke intervals remain restorable.
+
+Results from three successful, separate 2000-heavy-stroke Chromium/Firefox CI
+runs on 1200 × 800 artwork with **44,093 points** and 8 rotating heavy brush
+presets, including pressure and tilt simulations:
+
+- Baseline 24-stroke checkpoints: [run 38271488932](https://github.com/pfxamd/pfx-paint-studio/actions/runs/38271488932).
+- Experimental 8-stroke checkpoints: [run 38276326902](https://github.com/pfxamd/pfx-paint-studio/actions/runs/38276326902).
+- Selected 4-stroke checkpoints: [run 38277203221](https://github.com/pfxamd/pfx-paint-studio/actions/runs/38277203221).
+
+| 1000-stroke metric (median of 8 actions) | Every 24 | Every 8 | Every 4 |
+|---|---:|---:|---:|
+| Firefox undo | 1,278 ms | 357 ms | **116 ms** |
+| Firefox redo | 1,396 ms | 475 ms | **202 ms** |
+| Chromium undo | 108.8 ms | 31.1 ms | **10.5 ms** |
+| Chromium redo | 118.9 ms | 40.9 ms | **17.4 ms** |
+
+At 2000 strokes the workload aligned with the 4- and 8-stroke
+checkpoints, while the original 24-stroke snapshots still had a comparatively
+cheap remaining replay tail. Undo/redo were fast in all three runs: the selected
+four-stroke version measured **3/6 ms median in Firefox** and **1.1/1.3 ms in
+Chromium**. Testing misaligned and heavy tails at 1000 strokes is therefore
+essential to reveal the worst responsiveness spikes.
+
+| 2000-stroke drawing metric | Every 24 | Every 4 |
+|---|---:|---:|
+| Firefox stroke p95 | 120 ms | 96 ms |
+| Chromium stroke p95 | 10.1 ms | 8.3 ms |
+| Firefox WASM buffer | 103.9 MiB | 103.8 MiB |
+| Chromium WASM buffer | 103.8 MiB | 103.7 MiB |
+| Chromium JS heap reported | 7.7 MiB | 7.8 MiB |
+| Firefox cached full-page reload | 793 ms | 595 ms |
+| Chromium cached full-page reload | 330 ms | 289 ms |
+
+All three stress runs completed their checks for byte-identical SHA-256
+pixels after undo, redo, historical reconstruction, local autosave and a full
+page reload. Normal drawing, erasing and other browser interactions also
+passed. The cached checkpoint format is unchanged. A separate browser
+regression verifies both damaged-cache fallback and compatibility with
+previously saved checkpoints on 24-stroke boundaries.
+
+These are **three individual CI runs**, not repeated statistical samples on
+controlled hardware; the unexpected gains in drawing p95 may partly reflect
+runner variance. Frame gaps within the stress suite include deliberate
+main-thread overload. Firefox live JS heap and total resident memory were not
+measured. No physical tablet stylus or display-to-photon latency was tested.
+
+The remaining worst-case after four-stroke checkpointing is replay of up
+to three heavy brush strokes when the history is between checkpoints. The
+in-memory three-checkpoint limit controls memory usage and makes the change
+compatible with existing local documents.
