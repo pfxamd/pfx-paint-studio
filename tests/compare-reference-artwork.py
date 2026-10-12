@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path("test-artifacts")
 PRESETS = ("pencil", "dry_brush", "pastel", "watercolor_glazing")
-SCENARIOS = ("baseline", "reverse", "zigzag")
+SCENARIOS = ("baseline", "reverse", "zigzag", "primed")
 W, H = 320, 180
 THRESHOLDS = (200, 230, 240, 250)
 
