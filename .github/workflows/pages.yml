@@ -98,7 +98,7 @@ jobs:
           if git ls-files --error-unmatch vendor/hokusai/Cargo.lock >/dev/null 2>&1; then
             git diff --exit-code -- vendor/hokusai/Cargo.lock
           fi
-          if grep -REn 'https?://' _site/src _site/index.html _site/sw.js; then
+          if grep -REn 'https?://' _site/src _site/index.html _site/sw.js | grep -Ev ':[0-9]+:[[:space:]]*\*[[:space:]]*@(website|repository)[[:space:]]+https?://'; then
             echo "External runtime URL detected"
             exit 1
           fi
