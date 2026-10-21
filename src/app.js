@@ -1,3 +1,18 @@
+/**
+ * ┌──────────────────────────────────────────────┐
+ * │                                              │
+ * │  PFxamd                                      │
+ * │  Ahmed                                       │
+ * │                                              │
+ * └──────────────────────────────────────────────┘
+ *
+ * @project     PFx Paint Studio
+ * @author      Ahmed
+ * @brand       PFxamd
+ * @website     https://www.pfxamd.com
+ * @repository  https://github.com/pfxamd/pfx-paint-studio
+ */
+
 import { PaintingEngine, BRUSHES } from "./engine.js";
 import { CanvasViewport } from "./viewport.js";
 import { PaintCursor } from "./paint-cursor.js";
