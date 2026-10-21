@@ -2,3 +2,5 @@
 /_site/
 /vendor/hokusai/target/
 .DS_Store
+
+/.pfx-release-tools/

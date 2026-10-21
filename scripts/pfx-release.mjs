@@ -1,29 +1,13 @@
-import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { resolveApplicationRelease } from './pfx-release-loader.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
-
-/** One deterministic application release, independent of package/core versions. */
+/** Uses the shared PFx engine while retaining the application's public release fields. */
 export function resolveRelease() {
-  const config = JSON.parse(readFileSync(resolve(root, 'release.config.json'), 'utf8'));
-  if (git('rev-parse', '--is-shallow-repository') === 'true') {
-    throw new Error('Release numbering requires full Git history: git fetch --unshallow');
-  }
-  git('merge-base', '--is-ancestor', config.baseline, 'HEAD');
-  const count = Number(git('rev-list', '--first-parent', '--count', `${config.baseline}..HEAD`, '--', ...config.sourcePaths));
-  const match = /^(\d+)\.(\d+)\.(\d+)(?:-([a-z]+)\.(\d+))?$/.exec(config.baseVersion);
-  if (!match || !Number.isSafeInteger(count) || !['Alpha', 'Beta', 'Stable'].includes(config.channel)) {
-    throw new Error('Invalid release.config.json or Git release history');
-  }
-  const version = match[4]
-    ? `${match[1]}.${match[2]}.${match[3]}-${match[4]}.${Number(match[5]) + count}`
-    : `${match[1]}.${match[2]}.${Number(match[3]) + count}`;
-  return { schemaVersion: 1, product: config.product, channel: config.channel,
-    version, label: `${config.channel} ${version}`, commit: git('rev-parse', 'HEAD'),
-    sourceDate: git('show', '-s', '--format=%cI', 'HEAD') };
+  return resolveApplicationRelease(root,
+    JSON.parse(readFileSync(resolve(root, 'release.config.json'), 'utf8')));
 }
 
 function stampHtml(html, release) {
