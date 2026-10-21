@@ -1,0 +1,25 @@
+{
+  "product": "PFx Paint Studio",
+  "channel": "Alpha",
+  "baseline": "20fc5c59b967641b3fddda4e7560289666532615",
+  "baseVersion": "0.1.121",
+  "sourcePaths": [
+    "src",
+    "app",
+    "apps",
+    "public",
+    "assets",
+    "index.html",
+    "diagnostics",
+    "scripts",
+    "release.config.json",
+    "vite.config.ts",
+    "vite.config.js",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    ".github/workflows",
+    "vendor/hokusai/crates",
+    "sw.js"
+  ]
+}
